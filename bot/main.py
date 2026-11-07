@@ -459,11 +459,17 @@ def _get_proc_memory() -> str:
 
 async def cmd_system(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     import platform, os
+    cfg, _cli, _sup, _gate, _login = _wd(context)
+    mode = "Local Machine" if cfg.is_local else "Container / Cloud"
     await _reply(
         update,
         "🖥️ <b>System diagnostics</b>\n"
+        f"Environment: <b>{mode}</b>\n"
         f"Python: {platform.python_version()} ({platform.python_implementation()})\n"
         f"OS: {platform.system()} {platform.release()} ({platform.machine()})\n"
+        f"CLI: <code>{cfg.optimai_bin}</code>\n"
+        f"Home: <code>{cfg.optimai_home}</code>\n"
+        f"Data: <code>{cfg.data_dir}</code>\n"
         f"PID: {os.getpid()}\nRAM: {_get_proc_memory()}",
     )
 
@@ -473,12 +479,16 @@ async def cmd_healthcheck(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     cfg, _cli, sup, _gate, _login = _wd(context)
     snap = sup.snapshot()
     data_ok = os.access(cfg.data_dir, os.W_OK)
+    bin_ok = os.path.isfile(cfg.optimai_bin) and os.access(cfg.optimai_bin, os.X_OK)
+    mode = "Local" if cfg.is_local else "Container"
     await _reply(
         update,
         "🩺 <b>Subsystem healthcheck</b>\n"
+        f"Environment: <b>{mode}</b>\n"
         f"Supervisor desired: <code>{snap['desired']}</code>\n"
         f"Circuit breaker: {snap['breaker']}\n"
-        f"Data dir writable: {'✅ yes' if data_ok else '❌ no'}",
+        f"Data dir writable: {'✅ yes' if data_ok else '❌ no'}\n"
+        f"CLI executable: {'✅ yes' if bin_ok else '⚠️ not resolved'}",
     )
 
 async def cmd_ping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -702,10 +712,13 @@ def main() -> None:
         sys.exit(1)
 
     app = build_app(cfg)
+    mode_label = "LOCAL (auto-detected machine)" if cfg.is_local else "CONTAINER / CLOUD"
     log.info(
-        "Config ok: %s admin id(s), data_dir=%s, optimai_bin=%s, health=%s",
+        "Config ok [%s]: %s admin id(s), data_dir=%s, optimai_home=%s, optimai_bin=%s, health=%s",
+        mode_label,
         len(cfg.allowed_ids),
         cfg.data_dir,
+        cfg.optimai_home,
         cfg.optimai_bin,
         cfg.enable_health_port or "off",
     )

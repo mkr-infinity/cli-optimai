@@ -10,6 +10,8 @@ lists ALL missing names together with WHERE each value comes from.
 from __future__ import annotations
 
 import os
+import platform
+import shutil
 from dataclasses import dataclass, field
 
 _TRUE = {"true", "1", "yes", "on"}
@@ -31,6 +33,87 @@ REQUIRED_HELP = {
 
 class ConfigError(Exception):
     """Raised when configuration is missing or invalid; message is user-facing."""
+
+
+def load_dotenv(path: str = ".env") -> dict[str, str]:
+    """Parse a .env file into a dictionary (standard library only)."""
+    loaded: dict[str, str] = {}
+    if not os.path.isfile(path):
+        return loaded
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip()
+                    if len(val) >= 2 and (
+                        (val.startswith('"') and val.endswith('"'))
+                        or (val.startswith("'") and val.endswith("'"))
+                    ):
+                        val = val[1:-1]
+                    loaded[key] = val
+    except Exception:
+        pass
+    return loaded
+
+
+def is_local_environment() -> bool:
+    """True if running bare-metal on a developer/local machine rather than
+    inside a Docker container or cloud deployment."""
+    if os.path.exists("/.dockerenv"):
+        return False
+    if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("CONTAINER"):
+        return False
+    if os.path.exists("/data") and os.access("/data", os.W_OK):
+        return False
+    return True
+
+
+def find_local_optimai_bin(preferred: str | None = None) -> str:
+    """Find the best available optimai-cli executable for the current machine."""
+    if preferred and preferred.strip():
+        pref = os.path.expanduser(preferred.strip())
+        which_path = shutil.which(pref)
+        if which_path:
+            return which_path
+        if os.path.isfile(pref) and os.access(pref, os.X_OK):
+            return pref
+
+    is_win = platform.system() == "Windows"
+    names = ["optimai-cli.exe", "optimai.exe"] if is_win else ["optimai-cli", "optimai"]
+
+    for name in names:
+        found = shutil.which(name)
+        if found:
+            return found
+
+    candidates: list[str] = []
+    if is_win:
+        appdata = os.environ.get("LOCALAPPDATA", "")
+        prog = os.environ.get("ProgramFiles", "C:\\Program Files")
+        candidates.extend([
+            os.path.join(appdata, "optimai-cli", "optimai-cli.exe"),
+            os.path.join(prog, "optimai-cli", "optimai-cli.exe"),
+            os.path.abspath(".\\optimai-cli.exe"),
+        ])
+    else:
+        home = os.path.expanduser("~")
+        candidates.extend([
+            "/usr/local/bin/optimai-cli",
+            os.path.join(home, ".local", "bin", "optimai-cli"),
+            os.path.join(home, "bin", "optimai-cli"),
+            os.path.abspath("./optimai-cli"),
+        ])
+
+    for cand in candidates:
+        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+            return cand
+
+    return "optimai-cli.exe" if is_win else "optimai-cli"
 
 
 def _parse_bool(raw: str | None, default: bool = False) -> bool:
@@ -74,10 +157,22 @@ class Config:
     optimai_home: str = "/data/home"
     data_dir: str = "/data/data"
     optimai_bin: str = "optimai-cli"
+    is_local: bool = False
 
     @classmethod
     def load(cls, env: dict[str, str] | None = None, log=None) -> "Config":
-        env = os.environ if env is None else env
+        if env is None:
+            env = dict(os.environ)
+            # Auto-load .env when running locally if TELEGRAM_BOT_TOKEN not in env
+            if not env.get("NO_DOTENV") and not (env.get("TELEGRAM_BOT_TOKEN") or "").strip():
+                for candidate in [".env", os.path.join(os.path.dirname(__file__), "..", ".env")]:
+                    cand_path = os.path.abspath(candidate)
+                    if os.path.isfile(cand_path):
+                        for k, v in load_dotenv(cand_path).items():
+                            if k not in env or not env[k].strip():
+                                env[k] = v
+                                os.environ.setdefault(k, v)
+                        break
 
         # --- required vars, fail-fast, ALL missing reported at once ---
         missing = [
@@ -142,16 +237,44 @@ class Config:
         unauthorized_message = override if override else _BUILTIN_UNAUTHORIZED_TEMPLATE
         unauthorized_message = unauthorized_message.replace("{contact}", contact)
 
-        # --- internal paths (Docker /data or local ./data fallback) ---
-        default_home = "/data/home" if os.path.exists("/data") and os.access("/data", os.W_OK) else os.path.abspath("./data/home")
-        default_data = "/data/data" if os.path.exists("/data") and os.access("/data", os.W_OK) else os.path.abspath("./data/data")
-        optimai_home = os.path.abspath(
-            os.path.expanduser((env.get("OPTIMAI_HOME") or "").strip() or default_home)
-        )
-        data_dir = os.path.abspath(
-            os.path.expanduser((env.get("DATA_DIR") or "").strip() or default_data)
-        )
-        optimai_bin = (env.get("OPTIMAI_BIN") or "").strip() or "optimai-cli"
+        # --- auto-detect environment and machine setup ---
+        is_local = is_local_environment()
+        has_writable_data = os.path.exists("/data") and os.access("/data", os.W_OK)
+
+        raw_data = (env.get("DATA_DIR") or "").strip()
+        if not is_local and has_writable_data:
+            data_dir = os.path.abspath(os.path.expanduser(raw_data or "/data/data"))
+        else:
+            # Running locally or /data not writable:
+            # If raw_data is empty or points to container path /data/..., route to ./data
+            if not raw_data or raw_data.startswith("/data"):
+                data_dir = os.path.abspath("./data")
+            else:
+                data_dir = os.path.abspath(os.path.expanduser(raw_data))
+
+        raw_home = (env.get("OPTIMAI_HOME") or "").strip()
+        if not is_local and has_writable_data:
+            optimai_home = os.path.abspath(os.path.expanduser(raw_home or "/data/home"))
+        else:
+            # Running locally:
+            # If user already has ~/.optimai on their machine, use ~ so optimai-cli
+            # can find the existing CLI core and credentials!
+            user_home = os.path.expanduser("~")
+            existing_optimai = os.path.join(user_home, ".optimai")
+            if not raw_home or raw_home.startswith("/data"):
+                if os.path.isdir(existing_optimai):
+                    optimai_home = user_home
+                else:
+                    optimai_home = os.path.abspath("./data/home")
+            else:
+                optimai_home = os.path.abspath(os.path.expanduser(raw_home))
+
+        # Binary resolution
+        raw_bin = (env.get("OPTIMAI_BIN") or "").strip()
+        if is_local:
+            optimai_bin = find_local_optimai_bin(raw_bin)
+        else:
+            optimai_bin = raw_bin or "optimai-cli"
 
         os.makedirs(data_dir, exist_ok=True)
         os.makedirs(optimai_home, exist_ok=True)
@@ -170,6 +293,7 @@ class Config:
             optimai_home=optimai_home,
             data_dir=data_dir,
             optimai_bin=optimai_bin,
+            is_local=is_local,
         )
 
     def node_log_path(self) -> str:

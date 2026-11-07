@@ -5,9 +5,15 @@
 # Secrets: NEVER commit the real .env (it holds your bot token)
 .env
 
-# Runtime state: credentials, state.json, unauth_counts.json, node.log
+# Runtime state & local machine folders: never commit user/local directories
 data/
 *.log
+.optimai/
+optimai/
+.local/
+.config/
+node/
+tmp/
 
 # Python bytecode and virtual environments
 __pycache__/
