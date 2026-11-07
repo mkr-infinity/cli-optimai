@@ -6,8 +6,8 @@
 ![Version](https://img.shields.io/badge/version-1.2.0-orange)
 [![Telegram](https://img.shields.io/badge/contact-%40mkr__infinity-blue)](https://t.me/mkr_infinity)
 
-> 🚀 **Your 24/7 OptimAI Network node, controlled entirely from Telegram.**
-> Start, stop, monitor rewards, view live logs, and authenticate directly from your phone. If the node crashes at 3 AM, the bot restarts it automatically and alerts you.
+> 🚀 **Your 24/7 OptimAI Network node on Google Cloud, controlled entirely from Telegram.**
+> Start, stop, monitor rewards, view live logs, and authenticate directly from your phone. Run on Google Cloud Platform (GCP) Compute Engine with full Docker engine access for continuous 24/7 mining.
 
 ```
 ┌──────────┐  long-polling   ┌────────────────────┐  subprocess   ┌──────────────┐  docker.sock  ┌─────────────┐
@@ -29,7 +29,7 @@
 * **Full Remote Control**: 19 commands covering `/status`, `/rewards`, `/logs`, `/watch`, `/login`, and more.
 * **Persistent State**: Reboots and Docker rebuilds will **never** lose your login or desired node state.
 * **Hosting Mode**: Built-in rate limiter that turns unauthorized messages into a paid hosting funnel to **@mkr_infinity**.
-* **Dual Deployment**: Runs on any cheap **Linux VPS** (for mining) or **Railway** (for bot testing/control-plane).
+* **Cloud & Local Deployment**: Runs on **Google Cloud (GCP) Compute Engine** with full Docker engine access for real mining, or locally on your own machine.
 
 ---
 
@@ -38,15 +38,15 @@
 | Requirement | Purpose | Recommendation |
 |---|---|---|
 | **OptimAI Account** | Earning points & mining | **[Register (Ref: 646D12E7)](https://node.optimai.network/register?ref=646D12E7)** |
-| **Linux VPS** | Running node 24/7 with Docker | €3–5/mo Ubuntu 22.04/24.04 (Hetzner, RackNerd, Contabo) |
+| **Google Cloud (GCP)** | Running node 24/7 with Docker | Free $300 Trial Credits / Free Tier `e2-micro`/`e2-medium` (Ubuntu 24.04 LTS) |
 | **Telegram Account** | Controlling your bot | Free |
 | **Telegram Bot** | Interfacing with the server | Free via [@BotFather](https://t.me/BotFather) |
 
 ---
 
-## 3. Beginner Quickstart: 5 Steps to 24/7 Mining
+## 3. Beginner Quickstart: 5 Steps to 24/7 Mining on Google Cloud
 
-Follow these 5 simple steps to get your node running in under 5 minutes.
+Follow these 5 simple steps to get your node mining on Google Cloud in under 5 minutes.
 
 ### 🔹 Step 1: Create Your Telegram Bot
 1. Open Telegram and search for [@BotFather](https://t.me/BotFather).
@@ -57,19 +57,21 @@ Follow these 5 simple steps to get your node running in under 5 minutes.
 1. Message [@userinfobot](https://t.me/userinfobot) on Telegram.
 2. Note your numeric **Id** (e.g. `123456789`).
 
-### 🔹 Step 3: Connect to Your VPS
-Open a terminal on your computer and connect to your server:
-```bash
-ssh root@YOUR_VPS_IP
-```
+### 🔹 Step 3: Launch Your Google Cloud VM (Compute Engine)
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) > **Compute Engine** > **VM instances**.
+2. Click **Create Instance**:
+   * **Name**: `optimai-node`
+   * **Machine Type**: `e2-micro` (Free Tier eligible) or `e2-medium`
+   * **Boot Disk**: `Ubuntu 24.04 LTS` (20 GB balanced persistent disk)
+3. Click **Create**, then click the **SSH** button next to your new VM to open a terminal directly in your web browser.
 
-### 🔹 Step 4: Clone & Run Setup
-Copy and paste this command block into your server:
+### 🔹 Step 4: Clone & Run Setup on Google Cloud
+In the Google Cloud SSH terminal window, paste:
 ```bash
 # 1. Clone this repository
 git clone https://github.com/mkr-infinity/optimai-cli.git && cd optimai-cli
 
-# 2. Check compatibility & prepare host (supports Arch, Debian, Ubuntu, Fedora, Alpine, etc.)
+# 2. Check compatibility & prepare host (supports Ubuntu, Debian, Arch, Fedora, etc.)
 sudo bash setup-vps.sh
 
 # 3. Create your configuration
@@ -224,19 +226,32 @@ To host your own OptimAI node server (paid), contact @mkr_infinity.
 
 ---
 
-## 9. Railway Deployment (Control-Plane Only)
+## 9. Google Cloud (GCP) 24/7 Mining Deployment
 
-> [!NOTE]
-> Railway containers do not include a host Docker daemon (`docker.sock`). On Railway, the bot operates in **control-plane mode**: `/login`, `/rewards`, `/logs`, `/status`, and `/healthcheck` work 100%, but `/start_node` will honestly report that Docker is unreachable. Use a VPS for actual mining.
+> [!TIP]
+> **Why Google Cloud Compute Engine instead of Railway / Render?**
+> Serverless container platforms (Railway, Render, Heroku) do not provide a real host Docker daemon (`docker.sock`). On those platforms, `/start_node` fails because mining containers cannot be spawned.
+>
+> **Google Cloud Compute Engine gives you 100% full mining capability:**
+> * ⚡ **Dedicated Docker Engine**: Native `/var/run/docker.sock` access for unrestricted mining.
+> * 🎁 **$300 Free Credits / Free Tier**: New Google Cloud accounts get $300 in credits, and `e2-micro` instances are free-tier eligible.
+> * 🌐 **Always-On Uptime**: Virtual machines never sleep or timeout like web container platforms.
+> * 💻 **Browser SSH**: 1-click terminal in your browser without SSH key setup.
 
-### Quick Deploy to Railway:
-1. Connect this repo to [Railway](https://railway.com).
-2. Set Environment Variables:
-   * `TELEGRAM_BOT_TOKEN` = `your_token`
-   * `TELEGRAM_ALLOWED_IDS` = `your_id`
-   * `NODE_AUTO_START` = `false`
-3. **Add Volume**: Under your service, add a Volume mounted at `/data` (required to save login state).
-4. Deploy! The included [`Procfile`](Procfile) will run the bot as a background worker.
+### Quick Deploy with `gcloud` CLI:
+```bash
+# Launch a dedicated Ubuntu 24.04 instance on Google Cloud
+gcloud compute instances create optimai-node \
+  --zone=us-central1-a \
+  --machine-type=e2-medium \
+  --image-family=ubuntu-2404-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=25GB
+
+# Connect to your Google Cloud VM
+gcloud compute ssh optimai-node --zone=us-central1-a
+```
+*(See [docs/DEPLOY-GCP.md](docs/DEPLOY-GCP.md) for the complete Google Cloud guide).*
 
 ---
 
@@ -246,7 +261,7 @@ To host your own OptimAI node server (paid), contact @mkr_infinity.
 |---|---|---|
 | `Not authenticated` error | Session expired or first run | Run `/login` or `/login email password` |
 | Bot not responding | Invalid token or network down | Check `TELEGRAM_BOT_TOKEN` and run `docker compose logs -f` |
-| `no Docker daemon here` | Running on Railway or socket unmounted | Normal on Railway; on VPS check `/var/run/docker.sock` mount |
+| `no Docker daemon here` | Running on container PaaS or socket unmounted | Deploy on Google Cloud Compute Engine VM or start local Docker |
 | Node stopped unexpectedly | Crashed 5 times in a row | Send `/logs` to see the error, fix it, then send `/restart_node` |
 | Outdated CLI warning | Upstream released an update | Run `/update_cli` in Telegram or rebuild container |
 
@@ -256,7 +271,7 @@ To host your own OptimAI node server (paid), contact @mkr_infinity.
 
 ## 11. Growth Ideas
 
-* **Multi-Node Fleet**: Manage 10+ node servers across different providers from a single Telegram channel.
+* **Multi-Node Fleet**: Manage 10+ node servers across different Google Cloud zones from a single Telegram channel.
 * **Auto-Claim Rewards**: Automate periodic rewards balance scrapes and daily balance summaries.
 * **Client Hosting Service**: Charge clients monthly hosting fees to run nodes for them under your referral code.
 
@@ -266,7 +281,7 @@ To host your own OptimAI node server (paid), contact @mkr_infinity.
 
 * 🔒 **Never commit `.env`** — it contains your live Telegram token.
 * 🔒 **Keep `TELEGRAM_ALLOWED_IDS` minimal** — anyone in this list can control your node.
-* 🔒 **Strict Firewall** — The bot only uses outbound polling; no open inbound server ports are needed.
+* 🔒 **Strict Firewall** — The bot only uses outbound polling; no open inbound server ports are needed on Google Cloud.
 
 ---
 
@@ -274,7 +289,8 @@ To host your own OptimAI node server (paid), contact @mkr_infinity.
 
 Detailed guides are available in the [`docs/`](docs/) directory:
 
-* [DEPLOY-VPS.md](docs/DEPLOY-VPS.md) — Complete VPS setup and hardening guide
+* [DEPLOY-GCP.md](docs/DEPLOY-GCP.md) — Comprehensive Google Cloud (GCP) Compute Engine deployment guide
+* [DEPLOY-VPS.md](docs/DEPLOY-VPS.md) — Bare-metal VPS setup and hardening guide
 * [DEPLOY-RAILWAY.md](docs/DEPLOY-RAILWAY.md) — Railway configuration and control-plane deployment
 * [ENV-VARS.md](docs/ENV-VARS.md) — Complete dictionary of all environment variables
 * [RUNBOOK.md](docs/RUNBOOK.md) — Operator troubleshooting and incident response runbook

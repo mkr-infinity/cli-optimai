@@ -18,9 +18,9 @@ BANNER_TEXT = """
   \033[1;35m"Your OptimAI node, 24/7, controlled from Telegram. ⛏️"\033[0m
 
   \033[1;37mProduction-grade Dockerized controller for the OptimAI Network CLI node:\033[0m
-  \033[1;37m24/7 VPS workload via Docker, persistent desired-state supervisor,\033[0m
+  \033[1;37m24/7 Google Cloud / VPS workload via Docker, persistent desired-state supervisor,\033[0m
   \033[1;37mcrash auto-restart with circuit breaker, paste-login, live logs,\033[0m
-  \033[1;37mand an honest railway control-plane mode.\033[0m
+  \033[1;37mand multi-environment local machine auto-detection.\033[0m
 
   \033[1;34mRepository:\033[0m \033[1;36mhttps://github.com/mkr-infinity/optimai-cli\033[0m
   \033[1;34mAuthor:    \033[0m \033[1;33mMohammad Kaif Raja (mkr-infinity)\033[0m
