@@ -79,9 +79,25 @@ export PATH="$CLI_DIR:$PATH"
 case "$ARCH" in
   x86_64|amd64)
     info "x86_64 architecture detected (emulator/Intel Android). Installing native Linux binary..."
-    curl -fsSL "https://cli-node.optimai.network/optimai_cli_ubuntu" -o "$CLI_DIR/optimai-cli"
+    curl -fsSL "https://cli-node.optimai.network/optimai_cli_ubuntu" -o "$CLI_DIR/optimai-bin"
+    chmod +x "$CLI_DIR/optimai-bin"
+    cat <<'EOF' > "$CLI_DIR/optimai-cli"
+#!/usr/bin/env bash
+REAL_TARGET="$(dirname "$0")/optimai-bin"
+args=()
+for arg in "$@"; do
+  if [ "$arg" = "-v" ]; then
+    args+=("--version")
+  else
+    args+=("$arg")
+  fi
+done
+exec "$REAL_TARGET" "${args[@]}"
+EOF
     chmod +x "$CLI_DIR/optimai-cli"
-    info "Installed optimai-cli to $CLI_DIR/optimai-cli"
+    "$CLI_DIR/optimai-cli" --help >/dev/null 2>&1 || true
+    CLI_VER="$("$CLI_DIR/optimai-cli" --version 2>/dev/null || echo 'ready')"
+    info "Installed and primed optimai-cli ($CLI_VER)"
     ;;
   aarch64|arm64)
     info "ARM64 Android device detected."

@@ -279,6 +279,9 @@ c_termux, m_termux, d_termux = check_device_compatibility({"system": "Linux", "m
 check("compat: Termux aarch64 reports Termux PRoot guidance in reason", "Termux" in m_termux and "PRoot" in m_termux)
 check("termux: setup-termux.sh, setup-termux-proot.sh and docs/DEPLOY-TERMUX.md exist", os.path.isfile(os.path.join(ROOT, "setup-termux.sh")) and os.path.isfile(os.path.join(ROOT, "setup-termux-proot.sh")) and os.path.isfile(os.path.join(ROOT, "docs", "DEPLOY-TERMUX.md")))
 check("launcher: start.sh launcher script exists and is executable", os.path.isfile(os.path.join(ROOT, "start.sh")) and os.access(os.path.join(ROOT, "start.sh"), os.X_OK))
+check("installer: universal setup.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "setup.sh")) and os.access(os.path.join(ROOT, "setup.sh"), os.X_OK))
+check("codespaces: setup-codespaces.sh and .devcontainer/devcontainer.json exist", os.path.isfile(os.path.join(ROOT, "setup-codespaces.sh")) and os.access(os.path.join(ROOT, "setup-codespaces.sh"), os.X_OK) and os.path.isfile(os.path.join(ROOT, ".devcontainer", "devcontainer.json")))
+check("windows: setup-windows.ps1 and start.bat exist", os.path.isfile(os.path.join(ROOT, "setup-windows.ps1")) and os.path.isfile(os.path.join(ROOT, "start.bat")))
 for core_doc in ("DEPLOY-VPS.md", "DEPLOY-GCP.md", "DEPLOY-TERMUX.md", "RUNBOOK.md"):
     check(f"docs: core guide docs/{core_doc} exists", os.path.isfile(os.path.join(ROOT, "docs", core_doc)))
 
@@ -676,6 +679,15 @@ check(
 check(
     "main: build_welcome_card helper exists",
     "build_welcome_card" in src and "Welcome to OptimAI Telegram Node" in src,
+)
+from bot.main import build_welcome_card  # noqa: E402
+test_cfg = Config.load(env=base_env())
+test_cli = OptimaiCLI(STUB, test_cfg.optimai_home)
+test_sup = Supervisor(test_cli, test_cfg.data_dir, os.path.join(test_cfg.data_dir, "state.json"), os.path.join(test_cfg.data_dir, "node.log"))
+test_card_text, test_card_markup = asyncio.run(build_welcome_card(test_cfg, test_cli, test_sup))
+check(
+    "main: build_welcome_card executes cleanly and returns overview card",
+    "Welcome to OptimAI Telegram Node" in test_card_text and bool(test_card_markup),
 )
 check(
     "main: /start handler mapped to cmd_start",
