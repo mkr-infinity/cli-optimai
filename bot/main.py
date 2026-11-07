@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import logging
 import os
+import shutil
 import sys
 import time
 from typing import Optional, Tuple
@@ -24,6 +26,7 @@ from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
     MessageHandler,
@@ -37,7 +40,15 @@ from bot.compatibility import (
     download_compatible_cli,
     get_compatible_cli_url,
 )
-from bot.config import Config, ConfigError, sync_local_credentials
+from bot.config import (
+    Config,
+    ConfigError,
+    clear_credential_database,
+    load_credential_database,
+    restore_credentials_from_database,
+    save_credential_database,
+    sync_local_credentials,
+)
 from bot.gatekeeper import UnauthorizedGate
 from bot.login_session import LoginManager
 from bot.optimai import (
@@ -128,6 +139,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/stop_node (or /stop) — stop the node gracefully\n"
         "/restart_node — restart node & reset circuit breaker\n"
         "/status — view node status, health, Docker & uptime\n"
+        "/screen — view 24/7 background worker session\n"
         "/logs (or /log) — show latest node output\n"
         "/watch [seconds] — live-tail logs in chat (10-600s)\n\n"
         "<b>OptimAI Account (official CLI):</b>\n"
@@ -335,6 +347,18 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if ok:
             if cfg.is_local:
                 sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+            auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
+            if os.path.isfile(auth_file):
+                try:
+                    snap_data = json.load(open(auth_file))
+                    user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
+                    u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
+                    save_credential_database(
+                        cfg.credentials_path(),
+                        {"email": email, "auth_type": "legacy", "auth_snapshot": snap_data, "user_snapshot": u_snap, "updated_at": time.time()}
+                    )
+                except Exception:
+                    pass
             docker_ok, _ = await cli.docker_server_version()
             auto_msg = ""
             if cfg.node_auto_start and docker_ok and not sup.running:
@@ -342,7 +366,7 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
             await _reply(
                 update,
-                f"✅ <b>Login successful</b>\n\n{html.escape(msg)}{auto_msg}\n\n"
+                f"✅ <b>Login successful</b>\n\n{html.escape(msg)}\n<i>Credentials saved to database.</i>{auto_msg}\n\n"
                 f"{'Use /status to monitor mining.' if auto_msg else 'Use /start_node to start mining!'}",
             )
         else:
@@ -434,20 +458,75 @@ async def cmd_me(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
+    if sup.running:
+        await sup.request_stop()
     rc, out, err = await cli.auth_logout()
     text = (out + err).strip() or "Logged out."
-    for base in [cfg.optimai_home, os.path.expanduser("~")]:
-        p = os.path.join(base, ".config", "optimai-cli", "auth.json")
-        if os.path.isfile(p):
-            try:
-                os.remove(p)
-            except OSError:
-                pass
+    clear_credential_database(cfg.credentials_path(), [cfg.optimai_home, os.path.expanduser("~")])
     await _reply(
         update,
         f"🚪 <b>OptimAI Account Logged Out:</b>\n<pre>{html.escape(text)}</pre>\n\n"
-        "Your OptimAI credentials have been cleared. Send /login to authenticate again.",
+        "🧹 <b>Credentials Database Cleared:</b> Saved credentials and database session have been completely purged.\n"
+        "Send /login whenever you want to authenticate again.",
     )
+
+
+async def cmd_screen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display the detached 24/7 background worker session (equivalent to screen -S optimai)."""
+    cfg, cli, sup, _gate, _login = _wd(context)
+    snap = sup.snapshot()
+    tail = tail_file(cfg.node_log_path(), 6)
+    tail_text = "\n".join(tail).strip() or "(no log output yet)"
+    mode = "Local Machine" if cfg.is_local else "Cloud VM / Container"
+    status_badge = "🟢 Running (Background Session)" if snap["running"] else "🛑 Stopped"
+
+    text = (
+        "🖥️ <b>OptimAI Background Worker Session</b> (screen mode)\n\n"
+        f"• <b>Status:</b> {status_badge}\n"
+        f"• <b>Session PID:</b> <code>{snap['pid'] or 'detached/none'}</code>\n"
+        f"• <b>Uptime:</b> <code>{snap['uptime']}</code>\n"
+        f"• <b>Environment:</b> {mode}\n"
+        f"• <b>Binary:</b> <code>{cfg.optimai_bin}</code>\n"
+        f"• <b>Desired State:</b> <code>{snap['desired']}</code> (survives reboots)\n\n"
+        "<b>Latest Session Output (node.log):</b>\n"
+        f"<pre>{html.escape(tail_text)}</pre>\n\n"
+        "<i>Mining runs autonomously in the background 24/7. You can send any command anytime without interrupting execution.</i>"
+    )
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Refresh Screen", callback_data="screen_refresh"),
+            InlineKeyboardButton("📜 Live Watch", callback_data="screen_watch"),
+        ],
+        [
+            InlineKeyboardButton("🛑 Stop Node" if snap["running"] else "🚀 Start Node",
+                                 callback_data="screen_stop" if snap["running"] else "screen_start"),
+        ],
+    ])
+    await _reply(update, text, keyboard)
+
+
+async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query or not query.data:
+        return
+    await query.answer()
+    data = query.data
+    cfg, cli, sup, _gate, _login = _wd(context)
+    if data == "screen_refresh":
+        await cmd_screen(update, context)
+    elif data == "screen_stop":
+        await sup.request_stop()
+        await cmd_screen(update, context)
+    elif data == "screen_start":
+        docker_ok, _ = await cli.docker_server_version()
+        if not docker_ok:
+            if query.message:
+                await query.message.reply_text("⛔️ Cannot start node: Docker daemon not reachable.")
+            return
+        await sup.request_start()
+        await cmd_screen(update, context)
+    elif data == "screen_watch":
+        await cmd_watch(update, context)
 
 
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -597,6 +676,18 @@ async def on_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if ok:
         if cfg.is_local:
             sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+        auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
+        if os.path.isfile(auth_file):
+            try:
+                snap_data = json.load(open(auth_file))
+                user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
+                u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
+                save_credential_database(
+                    cfg.credentials_path(),
+                    {"auth_type": "oauth", "auth_snapshot": snap_data, "user_snapshot": u_snap, "updated_at": time.time()}
+                )
+            except Exception:
+                pass
         docker_ok, _ = await cli.docker_server_version()
         if cfg.node_auto_start and docker_ok and not sup.running:
             pid = await sup.request_start()
@@ -652,10 +743,32 @@ async def _post_init(app: Application) -> None:
         app.bot_data["health_server"] = server
         log.info("Health port %s open (GET /health -> 200 OK)", cfg.enable_health_port)
 
-    # Platform health + auto-resume.
+    # Ensure binary exists (auto-download compatible release if missing)
+    bin_path = cfg.optimai_bin if os.path.isabs(cfg.optimai_bin) else shutil.which(cfg.optimai_bin)
+    if not bin_path or not os.access(bin_path, os.X_OK):
+        target = cfg.optimai_bin if os.path.isabs(cfg.optimai_bin) else "/usr/local/bin/optimai-cli"
+        log.info("OptimAI CLI binary missing; downloading compatible release to %s...", target)
+        download_compatible_cli(target)
+
+    # Restore credentials from persistent database file if available
+    restore_credentials_from_database(cfg.credentials_path(), cfg.optimai_home)
     if cfg.is_local:
         sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
     authenticated = await cli.is_authenticated()
+    if authenticated:
+        data_auth = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
+        if os.path.isfile(data_auth):
+            try:
+                snap_auth = json.load(open(data_auth))
+                user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
+                u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
+                save_credential_database(
+                    cfg.credentials_path(),
+                    {"auth_snapshot": snap_auth, "user_snapshot": u_snap, "updated_at": time.time()},
+                )
+            except Exception:
+                pass
+
     docker_ok, docker_ver = await cli.docker_server_version()
     sup.update_health(authenticated, docker_ok)
 
@@ -675,18 +788,35 @@ async def _post_init(app: Application) -> None:
             has_explicit_state,
         )
 
-    boot = [
-        (
+    if not authenticated:
+        boot_text = (
+            f"🤖 <b>Bot online.</b> Node desired: <code>{sup.desired}</code> | Docker: "
+            f"{'✅ ok' if docker_ok else '❌ NOT REACHABLE'} | Auth: ❌ <b>NOT AUTHENTICATED</b>\n\n"
+            "🔑 <b>OptimAI Authentication Required:</b>\n"
+            "Your node is not signed in yet. Please authenticate to begin 24/7 mining:\n"
+            "• Tap <b>Open login page</b> below to sign in via browser OAuth\n"
+            "• Or send: <code>/login your_email@example.com your_password</code>"
+        )
+        login_btn = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔑 Open login page", url="https://node.optimai.network/login")],
+            [InlineKeyboardButton("✨ Register (Ref: 646D12E7)", url="https://node.optimai.network/register?ref=646D12E7")],
+        ])
+    else:
+        boot_text = (
             f"🤖 Bot online. Node desired: {sup.desired} | Docker: "
-            f"{'ok' if docker_ok else 'NOT REACHABLE'} | Auth: {'yes' if authenticated else 'no'}. "
+            f"{'ok' if docker_ok else 'NOT REACHABLE'} | Auth: yes. "
             "Type /help for commands."
         )
-    ]
+        login_btn = None
+
+    boot = [boot_text]
     if not docker_ok:
         boot.append(DOCKER_DEAD_WARNING)
     for uid in sorted(cfg.allowed_ids):
         try:
-            await app.bot.send_message(uid, "\n".join(boot))
+            await app.bot.send_message(
+                uid, "\n".join(boot), reply_markup=login_btn, parse_mode=ParseMode.HTML
+            )
         except Exception as exc:
             log.warning("Boot message to %s failed: %s", uid, exc)
 
@@ -754,15 +884,33 @@ def register_handlers(app: Application, admin_filter) -> None:
         CommandHandler("disk", cmd_disk, filters=admin_filter),
         CommandHandler("system", cmd_system, filters=admin_filter),
         CommandHandler("healthcheck", cmd_healthcheck, filters=admin_filter),
+        CommandHandler("screen", cmd_screen, filters=admin_filter),
         # 2. /id — OPEN to everyone (registered before the text handlers)
         CommandHandler("id", cmd_id),
-        # 3. admin plain text -> login paste
+        # 3. interactive screen callbacks
+        CallbackQueryHandler(on_screen_callback),
+        # 4. admin plain text -> login paste
         MessageHandler(filters.TEXT & ~filters.COMMAND & admin_filter, on_admin_text),
-        # 4. unauthorized catch-all — registered LAST, same group
+        # 5. unauthorized catch-all — registered LAST, same group
         MessageHandler(~admin_filter, unauthorized_handler),
     ]
     for handler in handlers:
         app.add_handler(handler)
+
+
+async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Report unhandled command errors directly back to the user in Telegram."""
+    log.error("Exception while handling Telegram update:", exc_info=context.error)
+    if isinstance(update, Update) and update.effective_message:
+        err_text = html.escape(str(context.error) or "Internal command execution error.")
+        try:
+            await update.effective_message.reply_text(
+                f"⚠️ <b>Command Execution Error:</b>\n<pre>{err_text}</pre>\n\n"
+                "<i>Error captured and logged. Check /status or send /help.</i>",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception:
+            pass
 
 
 def build_app(cfg: Config) -> Application:
@@ -774,6 +922,7 @@ def build_app(cfg: Config) -> Application:
         .post_shutdown(_post_shutdown)
         .build()
     )
+    app.add_error_handler(global_error_handler)
     cli = OptimaiCLI(binary=cfg.optimai_bin, home=cfg.optimai_home)
     sup = Supervisor(
         cli=cli,

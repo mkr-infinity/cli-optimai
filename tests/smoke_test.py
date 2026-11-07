@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #!/usr/bin/env python3
-"""Smoke test suite for optimai-telegram-node (v1.2.0).
+"""Smoke test suite for optimai-telegram-node (v1.3.0).
 
 Runs WITHOUT network and WITHOUT real Telegram:
   - OPTIMAI_BIN points at scripts/stub-optimai-cli.sh (deterministic fake CLI)
@@ -56,9 +56,13 @@ def check(name: str, cond: bool, info: str = "") -> None:
 from bot.config import (  # noqa: E402
     Config,
     ConfigError,
+    clear_credential_database,
     find_local_optimai_bin,
     is_local_environment,
+    load_credential_database,
     load_dotenv,
+    restore_credentials_from_database,
+    save_credential_database,
     sync_local_credentials,
 )
 from bot.compatibility import (  # noqa: E402
@@ -225,9 +229,26 @@ time.sleep(0.01)
 with open(os.path.join(cfg_b, "auth.json"), "w", encoding="utf-8") as f:
     f.write('{"token": "updated_token"}')
 sync_local_credentials(home_a, home_b)
+# Test credential database functions
+cred_db_path = os.path.join(TMP, "test_credentials.json")
+save_credential_database(cred_db_path, {"email": "miner@example.com", "auth_snapshot": {"token": "secret123"}})
+loaded_db = load_credential_database(cred_db_path)
 check(
-    "config: sync_local_credentials updates older credentials with newer version",
-    json.load(open(os.path.join(cfg_a, "auth.json"))).get("token") == "updated_token",
+    "config: save_credential_database and load_credential_database persist auth",
+    loaded_db.get("email") == "miner@example.com" and loaded_db.get("auth_snapshot", {}).get("token") == "secret123",
+)
+
+restored_home = os.path.join(TMP, "restored_home")
+check(
+    "config: restore_credentials_from_database recreates missing auth.json",
+    restore_credentials_from_database(cred_db_path, restored_home)
+    and os.path.isfile(os.path.join(restored_home, ".config", "optimai-cli", "auth.json")),
+)
+
+clear_credential_database(cred_db_path, [restored_home])
+check(
+    "config: clear_credential_database purges database file and auth configs",
+    not os.path.isfile(cred_db_path) and not os.path.isfile(os.path.join(restored_home, ".config", "optimai-cli", "auth.json")),
 )
 
 # ======================================================================
@@ -565,7 +586,7 @@ with open(os.path.join(ROOT, "bot", "main.py"), encoding="utf-8") as fh:
 
 for cmd in (
     "help", "status", "start_node", "stop_node", "restart_node", "rewards",
-    "logs", "log", "watch", "login", "auth_status", "me", "logout", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy",
+    "logs", "log", "watch", "login", "auth_status", "me", "logout", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy", "screen",
 ):
     check(
         f"main: /{cmd} handler registered",
@@ -574,6 +595,10 @@ for cmd in (
 check(
     "main: ApplicationBuilder enables concurrent_updates",
     "concurrent_updates(True)" in src,
+)
+check(
+    "main: global error handler registered",
+    "add_error_handler(global_error_handler)" in src,
 )
 check(
     "main: terminal log streamer function exists",
@@ -620,6 +645,10 @@ sup_src = open(os.path.join(ROOT, "bot", "supervisor.py"), encoding="utf-8").rea
 check(
     "supervisor: SIGINT goes to the process GROUP (os.killpg)",
     "os.killpg(proc.pid, signal.SIGINT)" in sup_src,
+)
+check(
+    "supervisor: check_and_apply_update helper exists",
+    "check_and_apply_update" in sup_src,
 )
 stub_src = open(os.path.join(ROOT, "scripts", "stub-optimai-cli.sh"), encoding="utf-8").read()
 check(

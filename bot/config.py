@@ -9,6 +9,7 @@ lists ALL missing names together with WHERE each value comes from.
 
 from __future__ import annotations
 
+import json
 import os
 import platform
 import shutil
@@ -186,6 +187,86 @@ def sync_local_credentials(dir_a: str, dir_b: str) -> None:
                     shutil.copy2(sfile, dfile)
         except OSError:
             pass
+
+
+def save_credential_database(credentials_path: str, data: dict) -> bool:
+    """Save authentication details and snapshot into persistent credentials.json database."""
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(credentials_path)), exist_ok=True)
+        temp_path = credentials_path + ".tmp"
+        with open(temp_path, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+        if hasattr(os, "chmod"):
+            try:
+                os.chmod(temp_path, 0o600)
+            except OSError:
+                pass
+        os.replace(temp_path, credentials_path)
+        return True
+    except OSError:
+        return False
+
+
+def load_credential_database(credentials_path: str) -> dict:
+    """Load saved credentials from credentials.json database."""
+    if not os.path.isfile(credentials_path):
+        return {}
+    try:
+        with open(credentials_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+            return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def clear_credential_database(credentials_path: str, homes: list[str]) -> bool:
+    """Purge credentials.json database and remove auth.json & user.json in all homes."""
+    if os.path.isfile(credentials_path):
+        try:
+            os.remove(credentials_path)
+        except OSError:
+            pass
+    for base in homes:
+        if not base:
+            continue
+        cfg_dir = os.path.join(base, ".config", "optimai-cli")
+        for fname in ("auth.json", "user.json"):
+            fpath = os.path.join(cfg_dir, fname)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                except OSError:
+                    pass
+    return True
+
+
+def restore_credentials_from_database(credentials_path: str, optimai_home: str) -> bool:
+    """If auth.json is missing in optimai_home but credentials.json has a snapshot, restore it."""
+    dest_dir = os.path.join(optimai_home, ".config", "optimai-cli")
+    auth_file = os.path.join(dest_dir, "auth.json")
+    if os.path.isfile(auth_file) and os.access(auth_file, os.R_OK):
+        return False
+
+    db = load_credential_database(credentials_path)
+    snapshot = db.get("auth_snapshot")
+    if snapshot and isinstance(snapshot, dict):
+        try:
+            os.makedirs(dest_dir, exist_ok=True)
+            with open(auth_file, "w", encoding="utf-8") as fh:
+                json.dump(snapshot, fh, indent=2)
+            if hasattr(os, "chmod"):
+                try:
+                    os.chmod(auth_file, 0o600)
+                except OSError:
+                    pass
+            user_snapshot = db.get("user_snapshot")
+            if user_snapshot and isinstance(user_snapshot, dict):
+                with open(os.path.join(dest_dir, "user.json"), "w", encoding="utf-8") as fh:
+                    json.dump(user_snapshot, fh, indent=2)
+            return True
+        except OSError:
+            pass
+    return False
 
 
 def _parse_bool(raw: str | None, default: bool = False) -> bool:
@@ -384,3 +465,6 @@ class Config:
 
     def unauth_counts_path(self) -> str:
         return os.path.join(self.data_dir, "unauth_counts.json")
+
+    def credentials_path(self) -> str:
+        return os.path.join(self.data_dir, "credentials.json")

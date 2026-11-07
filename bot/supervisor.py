@@ -32,7 +32,7 @@ import signal
 import time
 from typing import Awaitable, Callable
 
-from .optimai import OptimaiCLI, tail_file
+from .optimai import OptimaiCLI, contains_update_warning, tail_file
 
 log = logging.getLogger(__name__)
 
@@ -118,6 +118,36 @@ class Supervisor:
                     self._consecutive_crashes = 0
                     self._backoff_level = 0
                     return True
+        return False
+
+    async def check_and_apply_update(self) -> bool:
+        """Check for updates or update signal in node log; if detected, update binary and restart."""
+        try:
+            tail = tail_file(self._log_path, 30)
+            has_warning = contains_update_warning("\n".join(tail))
+
+            rc, out, err = await self.cli.run("update", timeout=30)
+            up_text = (out + "\n" + err).lower()
+            needs_update = (
+                has_warning
+                or "update available" in up_text
+                or "downloading" in up_text
+                or "updated" in up_text
+            )
+
+            if needs_update:
+                await self._alert(
+                    "🔄 <b>OptimAI CLI Update Detected:</b> Downloading latest binary and auto-restarting node..."
+                )
+                from bot.compatibility import download_compatible_cli
+                download_compatible_cli(self.cli.binary)
+                await self.restart()
+                await self._alert(
+                    f"✅ <b>Node Auto-Restarted:</b> Successfully updated to the latest OptimAI CLI (PID {self._pid()})."
+                )
+                return True
+        except Exception as exc:
+            log.warning("Auto-update check failed: %s", exc)
         return False
 
     
@@ -336,6 +366,13 @@ class Supervisor:
             return
 
         if proc is not None and proc.returncode is None:
+            try:
+                tail = tail_file(self._log_path, 15)
+                if contains_update_warning("\n".join(tail)):
+                    log.warning("Detected update warning in log; triggering auto-update...")
+                    asyncio.create_task(self.check_and_apply_update())
+            except Exception:
+                pass
             return  # running as desired
 
         # ---- crash (or not yet spawned) ----
