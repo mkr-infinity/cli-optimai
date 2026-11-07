@@ -152,9 +152,18 @@ if [ -f scripts/check-readiness.sh ]; then
   bash scripts/check-readiness.sh || true
 fi
 
-printf "\n${C_GREEN}============================================================${C_OFF}\n"
-printf "${C_GREEN} Termux Setup Complete! ⛏️${C_OFF}\n"
-printf " 1. Configure credentials:  nano .env\n"
-printf " 2. Start mining bot:       bash run-termux.sh\n"
-printf " 3. Attach to screen:       screen -r optimai\n"
-printf "${C_GREEN}============================================================${C_OFF}\n"
+# 7. Interactive Credentials Intake & Auto-Launch
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then
+  . "$SCRIPT_DIR/scripts/prompt-env.sh"
+  prompt_telegram_credentials "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.example" "bash '$SCRIPT_DIR/run-termux.sh'"
+fi
+
+if [ ! -f .env ] || ! grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
+  printf "\n${C_GREEN}============================================================${C_OFF}\n"
+  printf "${C_GREEN} Termux Setup Complete! ⛏️${C_OFF}\n"
+  printf " 1. Configure credentials:  nano .env\n"
+  printf " 2. Start mining bot:       bash run-termux.sh\n"
+  printf " 3. Attach to screen:       screen -r optimai\n"
+  printf "${C_GREEN}============================================================${C_OFF}\n"
+fi

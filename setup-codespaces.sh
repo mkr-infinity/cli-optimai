@@ -142,11 +142,20 @@ if [ -f scripts/check-readiness.sh ]; then
   bash scripts/check-readiness.sh || true
 fi
 
-printf "\n${C_BOLD}======================================================================${C_OFF}\n"
-printf "${C_GREEN}  🎉 GitHub Codespaces Setup Complete! Node is Ready to Run!${C_OFF}\n"
-printf "${C_BOLD}======================================================================${C_OFF}\n"
-printf "  1. Enter your Telegram credentials:  ${C_YELLOW}nano .env${C_OFF}\n"
-printf "     (Set TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS)\n"
-printf "  2. Start Bot and AI Miner together:  ${C_GREEN}bash start.sh${C_OFF} (or ${C_CYAN}make start${C_OFF})\n"
-printf "  3. Telegram Bot Control:             Send ${C_GREEN}/start${C_OFF} or ${C_GREEN}/status${C_OFF} in Telegram\n"
-printf "%s\n\n" "======================================================================"
+# 7. Interactive Credentials Intake & Auto-Launch
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then
+  . "$SCRIPT_DIR/scripts/prompt-env.sh"
+  prompt_telegram_credentials "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.example" "bash '$SCRIPT_DIR/start.sh'"
+fi
+
+if [ ! -f .env ] || ! grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
+  printf "\n${C_BOLD}======================================================================${C_OFF}\n"
+  printf "${C_GREEN}  🎉 GitHub Codespaces Setup Complete! Node is Ready to Run!${C_OFF}\n"
+  printf "${C_BOLD}======================================================================${C_OFF}\n"
+  printf "  1. Enter your Telegram credentials:  ${C_YELLOW}nano .env${C_OFF}\n"
+  printf "     (Set TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS)\n"
+  printf "  2. Start Bot and AI Miner together:  ${C_GREEN}bash start.sh${C_OFF} (or ${C_CYAN}make start${C_OFF})\n"
+  printf "  3. Telegram Bot Control:             Send ${C_GREEN}/start${C_OFF} or ${C_GREEN}/status${C_OFF} in Telegram\n"
+  printf "%s\n\n" "======================================================================"
+fi

@@ -91,7 +91,14 @@ EOF
     cp .env.example .env
   fi
 
-  printf "\n${C_GREEN}Setup Complete! Edit .env and start with: bash start.sh${C_OFF}\n\n"
+  if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then
+    . "$SCRIPT_DIR/scripts/prompt-env.sh"
+    prompt_telegram_credentials "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.example" "bash '$SCRIPT_DIR/start.sh'"
+  fi
+
+  if [ ! -f .env ] || ! grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
+    printf "\n${C_GREEN}Setup Complete! Edit .env and start with: bash start.sh${C_OFF}\n\n"
+  fi
   exit 0
 
 # 5. Linux VPS / Bare-Metal Linux
