@@ -123,36 +123,42 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, _cli, _sup, _gate, _login = _wd(context)
     help_text = (
         "<b>OptimAI Telegram Node — commands</b>\n\n"
-        "/help — show this list\n"
-        "/status — node running? uptime, auth, docker, crashes\n"
-        "/start_node — starts the optimai node (persistent)\n"
-        "/stop_node — persistent stop; survives reboots\n"
-        "/restart_node — stop + start, closes the circuit breaker\n"
-        "/rewards — OptimAI rewards balance\n"
-        "/logs — last lines of node.log\n"
-        "/watch [seconds] — live-tail node.log (10-600)\n"
-        "/login [email password] — browser OAuth or email/password sign-in\n"
-        "/auth_status — CLI auth status\n"
-        "/me — your Telegram ID and name\n"
-        "/cancel — cancel the pending /login session\n"
-        "/update_cli — check and update upstream optimai-cli\n"
+        "<b>Node Management:</b>\n"
+        "/start_node (or /start) — start the node and Docker AI mining\n"
+        "/stop_node (or /stop) — stop the node gracefully\n"
+        "/restart_node — restart node & reset circuit breaker\n"
+        "/status — view node status, health, Docker & uptime\n"
+        "/logs (or /log) — show latest node output\n"
+        "/watch [seconds] — live-tail logs in chat (10-600s)\n\n"
+        "<b>OptimAI Account (official CLI):</b>\n"
+        "/login [email password] — browser OAuth or email/password login\n"
+        "/auth_status (or /auth) — check OptimAI authentication status\n"
+        "/me — view OptimAI CLI profile & Telegram account\n"
+        "/logout — sign out from OptimAI account\n"
+        "/rewards — check OptimAI mining rewards balance\n"
+        "/cancel — cancel pending login session\n\n"
+        "<b>System & Diagnostics:</b>\n"
+        "/update_cli (or /update) — update official optimai-cli\n"
         "/version — bot + CLI versions\n"
         "/ping — test bot responsiveness\n"
         "/uptime — node supervisor uptime and state\n"
         "/disk — storage volume disk usage\n"
         "/system — platform and runtime diagnostics\n"
         "/healthcheck — check internal bot subsystems\n"
-        "/id — (anyone) your numeric Telegram ID\n"
+        "/id — (open to everyone) your numeric Telegram ID\n"
     )
     await _reply(update, help_text)
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
-    rc, out, err = await cli.auth_status()
+    (auth_res, (docker_ok, _)) = await asyncio.gather(
+        cli.auth_status(),
+        cli.docker_server_version(),
+    )
+    rc, out, err = auth_res
     auth_text = out + err
     authenticated = rc == 0 and NOT_AUTHENTICATED_MARK not in auth_text
-    docker_ok, _ = await cli.docker_server_version()
     sup.update_health(authenticated, docker_ok)
     snap = sup.snapshot()
 
@@ -414,12 +420,33 @@ async def cmd_me(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if user is None:
         return
     is_admin = user.id in cfg.allowed_ids
+    rc, out, err = await cli.auth_me()
+    opt_me = (out + err).strip() or "(not authenticated)"
     await _reply(
         update,
-        "👤 <b>Your account</b>\n"
-        f"ID: <code>{user.id}</code>\n"
-        f"Name: {html.escape(user.full_name)}\n"
-        f"Admin: {'✅ yes' if is_admin else '❌ no'}",
+        "👤 <b>Account Details</b>\n\n"
+        f"<b>Telegram User:</b> {html.escape(user.full_name)} (<code>{user.id}</code>)\n"
+        f"<b>Admin authorized:</b> {'✅ yes' if is_admin else '❌ no'}\n\n"
+        f"<b>OptimAI CLI (<code>optimai-cli auth me</code>):</b>\n"
+        f"<pre>{html.escape(opt_me)}</pre>",
+    )
+
+
+async def cmd_logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    cfg, cli, sup, _gate, _login = _wd(context)
+    rc, out, err = await cli.auth_logout()
+    text = (out + err).strip() or "Logged out."
+    for base in [cfg.optimai_home, os.path.expanduser("~")]:
+        p = os.path.join(base, ".config", "optimai-cli", "auth.json")
+        if os.path.isfile(p):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+    await _reply(
+        update,
+        f"🚪 <b>OptimAI Account Logged Out:</b>\n<pre>{html.escape(text)}</pre>\n\n"
+        "Your OptimAI credentials have been cleared. Send /login to authenticate again.",
     )
 
 
@@ -704,17 +731,23 @@ def register_handlers(app: Application, admin_filter) -> None:
         CommandHandler("help", cmd_help, filters=admin_filter),
         CommandHandler("status", cmd_status, filters=admin_filter),
         CommandHandler("start_node", cmd_start_node, filters=admin_filter),
+        CommandHandler("start", cmd_start_node, filters=admin_filter),
         CommandHandler("stop_node", cmd_stop_node, filters=admin_filter),
+        CommandHandler("stop", cmd_stop_node, filters=admin_filter),
         CommandHandler("restart_node", cmd_restart_node, filters=admin_filter),
         CommandHandler("rewards", cmd_rewards, filters=admin_filter),
         CommandHandler("logs", cmd_logs, filters=admin_filter),
+        CommandHandler("log", cmd_logs, filters=admin_filter),
         CommandHandler("watch", cmd_watch, filters=admin_filter),
         CommandHandler("login", cmd_login, filters=admin_filter),
         CommandHandler("login_legacy", cmd_login, filters=admin_filter),
+        CommandHandler("logout", cmd_logout, filters=admin_filter),
         CommandHandler("auth_status", cmd_auth_status, filters=admin_filter),
+        CommandHandler("auth", cmd_auth_status, filters=admin_filter),
         CommandHandler("me", cmd_me, filters=admin_filter),
         CommandHandler("cancel", cmd_cancel, filters=admin_filter),
         CommandHandler("update_cli", cmd_update_cli, filters=admin_filter),
+        CommandHandler("update", cmd_update_cli, filters=admin_filter),
         CommandHandler("version", cmd_version, filters=admin_filter),
         CommandHandler("ping", cmd_ping, filters=admin_filter),
         CommandHandler("uptime", cmd_uptime, filters=admin_filter),
@@ -736,6 +769,7 @@ def build_app(cfg: Config) -> Application:
     app = (
         ApplicationBuilder()
         .token(cfg.telegram_bot_token)
+        .concurrent_updates(True)
         .post_init(_post_init)
         .post_shutdown(_post_shutdown)
         .build()
@@ -756,8 +790,45 @@ def build_app(cfg: Config) -> Application:
     return app
 
 
+def tail_node_log_terminal(log_path: str) -> None:
+    """Stream OptimAI node logs directly in the terminal (runs on `python -m bot.main logs`)."""
+    print(f"📖 Streaming OptimAI node logs from: {log_path} (Press Ctrl+C to exit)\n")
+    if not os.path.exists(log_path):
+        print(f"File {log_path} not found yet. Waiting for node process to write logs...")
+        while not os.path.exists(log_path):
+            time.sleep(0.5)
+
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as fh:
+            lines = fh.readlines()
+            for line in lines[-40:]:
+                sys.stdout.write(line)
+            sys.stdout.flush()
+
+        offset = os.path.getsize(log_path)
+        while True:
+            chunk, offset = read_new_chunk(log_path, offset)
+            if chunk:
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("\n👋 Stopped watching node logs.")
+
+
 def main() -> None:
     bot.print_banner()
+
+    # Terminal log viewer: python -m bot.main logs / make logs / scripts/logs.sh
+    if any(arg in sys.argv[1:] for arg in ("logs", "log", "/logs", "/log", "--logs", "-l")):
+        try:
+            cfg = Config.load()
+            log_path = cfg.node_log_path()
+        except Exception:
+            log_path = os.path.abspath("./data/node.log")
+        tail_node_log_terminal(log_path)
+        return
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

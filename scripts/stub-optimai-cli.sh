@@ -93,6 +93,17 @@ case "$cmd" in
           echo "Not authenticated"
         fi
         ;;
+      me)
+        if [ -f "$AUTH_FLAG" ]; then
+          echo "Logged in as stub@example.com"
+        else
+          echo "Not authenticated"
+        fi
+        ;;
+      logout)
+        rm -f "$AUTH_FLAG"
+        echo "Logged out successfully."
+        ;;
       *)
         echo "Error: unknown auth subcommand: ${sub:-?}"
         exit 1
