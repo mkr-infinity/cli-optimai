@@ -144,7 +144,12 @@ async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> t
     snap = sup.snapshot()
 
     distro_name, machine = get_os_info()
-    mode = "Local Machine" if cfg.is_local else "Cloud VM / Container"
+    if "termux" in distro_name.lower():
+        mode = "Android Termux"
+    elif cfg.is_local:
+        mode = "Local Machine"
+    else:
+        mode = "Cloud VM / Container"
 
     node_status_badge = (
         f"🟢 <b>Running</b> (PID <code>{snap['pid']}</code>, Uptime <code>{snap['uptime']}</code>)"

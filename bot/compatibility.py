@@ -37,7 +37,18 @@ def get_os_info() -> dict[str, str]:
     distro_like = ""
     distro_name = f"{system} {release}"
 
-    if system == "Linux":
+    # Check for Android / Termux environment
+    is_termux = bool(
+        os.environ.get("TERMUX_VERSION")
+        or "/data/data/com.termux" in os.environ.get("PREFIX", "")
+        or os.path.exists("/data/data/com.termux")
+    )
+
+    if is_termux:
+        distro_id = "termux"
+        distro_like = "android"
+        distro_name = f"Termux Android ({release})"
+    elif system == "Linux":
         if os.path.isfile("/etc/os-release"):
             try:
                 with open("/etc/os-release", "r", encoding="utf-8") as f:
@@ -135,11 +146,20 @@ def check_device_compatibility(
             reason = f"Compatible: 64-bit Linux ({distro_name}, {machine}). Supported across Arch, Debian, Ubuntu, Fedora, openSUSE, etc."
         elif is_arm64:
             is_compatible = False
-            reason = (
-                f"Incompatible architecture: Linux {machine} (ARM64). "
-                "The upstream OptimAI Network currently only distributes x86_64 ELF binaries for Linux. "
-                "ARM64 is supported on macOS (Apple Silicon), but not yet on Linux."
-            )
+            distro_id = info.get("distro_id", "")
+            if distro_id == "termux":
+                reason = (
+                    f"Android Termux {machine} (ARM64) detected. "
+                    "The upstream OptimAI CLI currently distributes x86_64 Linux binaries. "
+                    "To mine on ARM64 Android devices, use PRoot Distro Ubuntu with Box64/QEMU x86_64 emulation "
+                    "(see docs/DEPLOY-TERMUX.md or run bash setup-termux.sh)."
+                )
+            else:
+                reason = (
+                    f"Incompatible architecture: Linux {machine} (ARM64). "
+                    "The upstream OptimAI Network currently only distributes x86_64 ELF binaries for Linux. "
+                    "ARM64 is supported on macOS (Apple Silicon), but not yet on Linux."
+                )
         elif is_32bit:
             is_compatible = False
             reason = f"Incompatible architecture: 32-bit Linux ({machine}). OptimAI CLI requires a 64-bit operating system."
