@@ -37,7 +37,7 @@ from bot.compatibility import (
     download_compatible_cli,
     get_compatible_cli_url,
 )
-from bot.config import Config, ConfigError
+from bot.config import Config, ConfigError, sync_local_credentials
 from bot.gatekeeper import UnauthorizedGate
 from bot.login_session import LoginManager
 from bot.optimai import (
@@ -193,12 +193,20 @@ async def cmd_start_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "control-plane works (/login /rewards /logs /status).",
         )
         return
+    if cfg.is_local:
+        sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+    if not await cli.is_authenticated():
+        await _reply(
+            update,
+            "⚠️ <b>Not authenticated:</b> Please log in first using /login before starting the node.",
+        )
+        return
     sup.close_breaker()
     pid = await sup.request_start()
     await _reply(
         update,
         f"🚀 Node starting (PID {pid}). Desired state: running. It will run 24/7 "
-        "and auto-restart on crashes. Check /status.",
+        "and auto-restart on crashes. Docker AI miner containers are starting. Check /status.",
     )
 
 
@@ -319,10 +327,17 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await _reply(update, "⏳ Attempting email & password authentication...")
         ok, msg = await login.login_legacy(email, password)
         if ok:
+            if cfg.is_local:
+                sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+            docker_ok, _ = await cli.docker_server_version()
+            auto_msg = ""
+            if cfg.node_auto_start and docker_ok and not sup.running:
+                pid = await sup.request_start()
+                auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
             await _reply(
                 update,
-                f"✅ <b>Login successful</b>\n\n{html.escape(msg)}\n\n"
-                "Use /start_node to start mining!",
+                f"✅ <b>Login successful</b>\n\n{html.escape(msg)}{auto_msg}\n\n"
+                f"{'Use /status to monitor mining.' if auto_msg else 'Use /start_node to start mining!'}",
             )
         else:
             await _reply(
@@ -551,7 +566,15 @@ async def on_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "✅ Login successful — OptimAI session saved." if ok else "❌ Login failed:"
     )
     tail = summary[:1500]
-    await _reply(update, f"{header}\n\n<pre>{html.escape(tail)}</pre>")
+    auto_msg = ""
+    if ok:
+        if cfg.is_local:
+            sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+        docker_ok, _ = await cli.docker_server_version()
+        if cfg.node_auto_start and docker_ok and not sup.running:
+            pid = await sup.request_start()
+            auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
+    await _reply(update, f"{header}\n\n<pre>{html.escape(tail)}</pre>{auto_msg}")
 
 
 async def unauthorized_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -603,19 +626,27 @@ async def _post_init(app: Application) -> None:
         log.info("Health port %s open (GET /health -> 200 OK)", cfg.enable_health_port)
 
     # Platform health + auto-resume.
+    if cfg.is_local:
+        sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
     authenticated = await cli.is_authenticated()
     docker_ok, docker_ver = await cli.docker_server_version()
     sup.update_health(authenticated, docker_ok)
 
-    if (
+    has_explicit_state = os.path.exists(sup._state_path)
+    should_auto_start = (
         cfg.node_auto_start
-        and sup.desired == "running"
         and authenticated
         and docker_ok
         and not sup.running
-    ):
+        and (sup.desired == "running" or not has_explicit_state)
+    )
+    if should_auto_start:
         await sup.request_start()
-        log.info("Auto-resumed node (desired=running, NODE_AUTO_START=true)")
+        log.info(
+            "Auto-started node (desired=%s, has_explicit_state=%s, NODE_AUTO_START=true)",
+            sup.desired,
+            has_explicit_state,
+        )
 
     boot = [
         (
