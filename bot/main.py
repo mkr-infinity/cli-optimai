@@ -39,6 +39,7 @@ from bot.compatibility import (
     check_device_compatibility,
     download_compatible_cli,
     get_compatible_cli_url,
+    get_os_info,
 )
 from bot.config import (
     Config,
@@ -130,13 +131,87 @@ def _wd(context: ContextTypes.DEFAULT_TYPE) -> Tuple[Config, OptimaiCLI, Supervi
 # ----------------------------------------------------------------------
 
 
+async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> tuple[str, InlineKeyboardMarkup]:
+    """Construct an informative welcome and status overview card with action buttons."""
+    (auth_res, (docker_ok, docker_ver)) = await asyncio.gather(
+        cli.auth_status(),
+        cli.docker_server_version(),
+    )
+    rc, out, err = auth_res
+    auth_text = out + err
+    authenticated = rc == 0 and NOT_AUTHENTICATED_MARK not in auth_text
+    sup.update_health(authenticated, docker_ok)
+    snap = sup.snapshot()
+
+    distro_name, machine = get_os_info()
+    mode = "Local Machine" if cfg.is_local else "Cloud VM / Container"
+
+    node_status_badge = (
+        f"🟢 <b>Running</b> (PID <code>{snap['pid']}</code>, Uptime <code>{snap['uptime']}</code>)"
+        if snap["running"]
+        else "🔴 <b>Stopped</b> (Offline)"
+    )
+    auth_badge = "✅ <b>Authenticated</b>" if snap["authenticated"] else "❌ <b>Not Logged In</b> (send /login)"
+    docker_badge = f"✅ <b>Reachable</b> (v{docker_ver})" if snap["docker_ok"] else "⚠️ <b>Not Reachable</b>"
+
+    text = (
+        f"👋 <b>Welcome to OptimAI Telegram Node v{bot.__version__}</b> ⛏️\n"
+        "<i>Autonomous 24/7 Mining Supervisor & Remote Controller</i>\n\n"
+        "📊 <b>System & Node Overview:</b>\n"
+        f"• <b>Node Status:</b> {node_status_badge}\n"
+        f"• <b>OptimAI Auth:</b> {auth_badge}\n"
+        f"• <b>Docker AI Miner:</b> {docker_badge}\n"
+        f"• <b>Machine / Host:</b> {html.escape(distro_name)} ({machine}) [{mode}]\n"
+        f"• <b>Supervisor:</b> Desired: <code>{snap['desired']}</code> | Breaker: <code>{snap['breaker']}</code>\n\n"
+        "⚡ <b>Essential Commands:</b>\n"
+        "/start_node — Start mining in 24/7 background session\n"
+        "/stop_node — Stop mining & background worker workloads\n"
+        "/status — Full live status & system diagnostic\n"
+        "/screen — View detached 24/7 background worker session\n"
+        "/rewards — Check mining points & rewards balance\n"
+        "/logs — View recent node log output\n"
+        "/login — Authenticate your OptimAI account\n"
+        "/help — View complete command catalog\n\n"
+        '🎁 Need an OptimAI account? <a href="https://node.optimai.network/register?ref=646D12E7">Register here (Ref: 646D12E7)</a>'
+    )
+
+    buttons = [
+        [
+            InlineKeyboardButton("🛑 Stop Node" if snap["running"] else "▶️ Start Node",
+                                 callback_data="screen_stop" if snap["running"] else "screen_start"),
+            InlineKeyboardButton("📊 Status", callback_data="welcome_status"),
+        ],
+        [
+            InlineKeyboardButton("🖥️ Screen Session", callback_data="screen_refresh"),
+            InlineKeyboardButton("💰 Rewards", callback_data="welcome_rewards"),
+        ],
+        [
+            InlineKeyboardButton("🔑 Login", callback_data="welcome_login"),
+            InlineKeyboardButton("📜 Logs", callback_data="welcome_logs"),
+        ],
+        [
+            InlineKeyboardButton("✨ Register (Ref: 646D12E7)", url="https://node.optimai.network/register?ref=646D12E7"),
+        ],
+    ]
+    keyboard = InlineKeyboardMarkup(buttons)
+    return text, keyboard
+
+
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Display comprehensive welcome banner, current node state, and quick controls."""
+    cfg, cli, sup, _gate, _login = _wd(context)
+    text, keyboard = await build_welcome_card(cfg, cli, sup)
+    await _reply(update, text, keyboard)
+
+
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, _cli, _sup, _gate, _login = _wd(context)
     help_text = (
         "<b>OptimAI Telegram Node — commands</b>\n\n"
         "<b>Node Management:</b>\n"
-        "/start_node (or /start) — start the node and Docker AI mining\n"
-        "/stop_node (or /stop) — stop the node gracefully\n"
+        "/start — welcome overview, system health & quick controls\n"
+        "/start_node — start the node and Docker AI mining\n"
+        "/stop_node (or /stop) — stop the node & background workloads\n"
         "/restart_node — restart node & reset circuit breaker\n"
         "/status — view node status, health, Docker & uptime\n"
         "/screen — view 24/7 background worker session\n"
@@ -174,7 +249,14 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     sup.update_health(authenticated, docker_ok)
     snap = sup.snapshot()
 
-    node_line = f"running ({snap['uptime']}, PID {snap['pid']})" if snap["running"] else "stopped"
+    if snap["running"]:
+        node_line = f"🟢 running (PID {snap['pid']}, Uptime {snap['uptime']})"
+        _ok, node_out = await cli.node_status()
+        node_detail = f"\n<pre>{html.escape(node_out)}</pre>" if node_out else ""
+    else:
+        node_line = "🔴 stopped (offline)"
+        node_detail = "\n<i>Node is stopped. Send /start_node or tap ▶️ Start Node below.</i>"
+
     bot_uptime_line = f"Bot uptime: {fmt_uptime(time.monotonic() - _BOT_START_MONOTONIC)}"
     breaker_line = (
         f"crashes: {snap['crashes']}/{CRASH_LIMIT} | backoff level: "
@@ -182,7 +264,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
     lines = [
         "<b>Node status</b> (live)",
-        f"Node: {node_line}",
+        f"Node: {node_line}{node_detail}",
         bot_uptime_line,
         f"Desired state: {snap['desired']} (pid: {snap['pid'] or 'none'})",
         f"Authenticated: {'✅ yes' if snap['authenticated'] else '❌ no — run /login'}",
@@ -194,10 +276,24 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         lines.append(DOCKER_DEAD_WARNING)
     if contains_update_warning(auth_text):
         lines.append(
-            "⚠️ Important OptimAI CLI update available — reinstall the CLI per "
-            "README (run `optimai-cli update` steps on the VPS host)."
+            "⚠️ Important OptimAI CLI update available — send /update_cli to auto-update."
         )
-    await _reply(update, "\n".join(lines))
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🛑 Stop Node" if snap["running"] else "▶️ Start Node",
+                                 callback_data="screen_stop" if snap["running"] else "screen_start"),
+            InlineKeyboardButton("🔄 Refresh", callback_data="welcome_status"),
+        ],
+        [
+            InlineKeyboardButton("🖥️ Screen Session", callback_data="screen_refresh"),
+            InlineKeyboardButton("💰 Rewards", callback_data="welcome_rewards"),
+        ],
+        [
+            InlineKeyboardButton("📜 Logs", callback_data="welcome_logs"),
+        ],
+    ])
+    await _reply(update, "\n".join(lines), keyboard)
 
 
 async def cmd_start_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -241,8 +337,8 @@ async def cmd_stop_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await sup.request_stop()
     await _reply(
         update,
-        "🛑 Node stopped. This persists: it will NOT come back after a reboot "
-        "until you send /start_node.",
+        "🛑 <b>Node stopped:</b> Background node process and all associated mining "
+        "workloads have been stopped. Send /start_node whenever you want to resume.",
     )
 
 
@@ -516,7 +612,11 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await cmd_screen(update, context)
     elif data == "screen_stop":
         await sup.request_stop()
-        await cmd_screen(update, context)
+        if query.message and query.message.text and "Welcome" in query.message.text:
+            text, keyboard = await build_welcome_card(cfg, cli, sup)
+            await query.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        else:
+            await cmd_screen(update, context)
     elif data == "screen_start":
         docker_ok, _ = await cli.docker_server_version()
         if not docker_ok:
@@ -524,9 +624,27 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await query.message.reply_text("⛔️ Cannot start node: Docker daemon not reachable.")
             return
         await sup.request_start()
-        await cmd_screen(update, context)
+        if query.message and query.message.text and "Welcome" in query.message.text:
+            text, keyboard = await build_welcome_card(cfg, cli, sup)
+            await query.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        else:
+            await cmd_screen(update, context)
     elif data == "screen_watch":
         await cmd_watch(update, context)
+    elif data == "welcome_status":
+        await cmd_status(update, context)
+    elif data == "welcome_rewards":
+        await cmd_rewards(update, context)
+    elif data == "welcome_logs":
+        await cmd_logs(update, context)
+    elif data == "welcome_login":
+        await cmd_login(update, context)
+    elif data == "welcome_refresh":
+        text, keyboard = await build_welcome_card(cfg, cli, sup)
+        if query.message:
+            await query.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        else:
+            await _reply(update, text, keyboard)
 
 
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -788,34 +906,11 @@ async def _post_init(app: Application) -> None:
             has_explicit_state,
         )
 
-    if not authenticated:
-        boot_text = (
-            f"🤖 <b>Bot online.</b> Node desired: <code>{sup.desired}</code> | Docker: "
-            f"{'✅ ok' if docker_ok else '❌ NOT REACHABLE'} | Auth: ❌ <b>NOT AUTHENTICATED</b>\n\n"
-            "🔑 <b>OptimAI Authentication Required:</b>\n"
-            "Your node is not signed in yet. Please authenticate to begin 24/7 mining:\n"
-            "• Tap <b>Open login page</b> below to sign in via browser OAuth\n"
-            "• Or send: <code>/login your_email@example.com your_password</code>"
-        )
-        login_btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔑 Open login page", url="https://node.optimai.network/login")],
-            [InlineKeyboardButton("✨ Register (Ref: 646D12E7)", url="https://node.optimai.network/register?ref=646D12E7")],
-        ])
-    else:
-        boot_text = (
-            f"🤖 Bot online. Node desired: {sup.desired} | Docker: "
-            f"{'ok' if docker_ok else 'NOT REACHABLE'} | Auth: yes. "
-            "Type /help for commands."
-        )
-        login_btn = None
-
-    boot = [boot_text]
-    if not docker_ok:
-        boot.append(DOCKER_DEAD_WARNING)
+    welcome_text, welcome_keyboard = await build_welcome_card(cfg, cli, sup)
     for uid in sorted(cfg.allowed_ids):
         try:
             await app.bot.send_message(
-                uid, "\n".join(boot), reply_markup=login_btn, parse_mode=ParseMode.HTML
+                uid, welcome_text, reply_markup=welcome_keyboard, parse_mode=ParseMode.HTML
             )
         except Exception as exc:
             log.warning("Boot message to %s failed: %s", uid, exc)
@@ -861,7 +956,7 @@ def register_handlers(app: Application, admin_filter) -> None:
         CommandHandler("help", cmd_help, filters=admin_filter),
         CommandHandler("status", cmd_status, filters=admin_filter),
         CommandHandler("start_node", cmd_start_node, filters=admin_filter),
-        CommandHandler("start", cmd_start_node, filters=admin_filter),
+        CommandHandler("start", cmd_start, filters=admin_filter),
         CommandHandler("stop_node", cmd_stop_node, filters=admin_filter),
         CommandHandler("stop", cmd_stop_node, filters=admin_filter),
         CommandHandler("restart_node", cmd_restart_node, filters=admin_filter),

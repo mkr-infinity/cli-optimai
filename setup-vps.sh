@@ -75,7 +75,7 @@ step "1/4 Installing Docker & dependencies for $DISTRO_NAME"
 if command -v pacman >/dev/null 2>&1; then
   # Arch Linux / EndeavourOS / Manjaro
   step "Using pacman package manager"
-  pacman -Sy --needed --noconfirm docker docker-compose curl
+  pacman -Sy --needed --noconfirm docker docker-compose curl screen
 elif command -v apt-get >/dev/null 2>&1; then
   # Debian / Ubuntu
   step "Using apt-get package manager"
@@ -83,21 +83,22 @@ elif command -v apt-get >/dev/null 2>&1; then
   if ! command -v docker >/dev/null 2>&1; then
     curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && sh /tmp/get-docker.sh
   fi
+  apt-get install -y screen ca-certificates || true
   if ! docker compose version >/dev/null 2>&1; then
     apt-get install -y docker-compose-plugin || apt-get install -y docker-compose
   fi
 elif command -v dnf >/dev/null 2>&1; then
   # Fedora / RHEL / CentOS / Rocky / Alma
   step "Using dnf package manager"
-  dnf install -y docker docker-compose-plugin curl || dnf install -y docker docker-compose curl
+  dnf install -y docker docker-compose-plugin curl screen || dnf install -y docker docker-compose curl screen
 elif command -v zypper >/dev/null 2>&1; then
   # openSUSE
   step "Using zypper package manager"
-  zypper in -y docker docker-compose curl
+  zypper in -y docker docker-compose curl screen
 elif command -v apk >/dev/null 2>&1; then
   # Alpine Linux
   step "Using apk package manager"
-  apk add docker docker-cli-compose curl gcompat
+  apk add docker docker-cli-compose curl gcompat screen
 else
   warn "Unknown package manager. Attempting official Docker script"
   if ! command -v docker >/dev/null 2>&1; then

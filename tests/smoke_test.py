@@ -641,6 +641,10 @@ check(
     "optimai: read_new_chunk shrink check is `size < start_offset`",
     "if size < start_offset:" in opt_src,
 )
+check(
+    "optimai: node_stop and stop_mining_containers helpers exist",
+    "def node_stop" in opt_src and "def stop_mining_containers" in opt_src,
+)
 sup_src = open(os.path.join(ROOT, "bot", "supervisor.py"), encoding="utf-8").read()
 check(
     "supervisor: SIGINT goes to the process GROUP (os.killpg)",
@@ -649,6 +653,18 @@ check(
 check(
     "supervisor: check_and_apply_update helper exists",
     "check_and_apply_update" in sup_src,
+)
+check(
+    "supervisor: network connectivity and container cleanup wired",
+    "check_network_connectivity" in sup_src and "stop_mining_containers" in sup_src,
+)
+check(
+    "main: build_welcome_card helper exists",
+    "build_welcome_card" in src and "Welcome to OptimAI Telegram Node" in src,
+)
+check(
+    "main: /start handler mapped to cmd_start",
+    'CommandHandler("start", cmd_start' in src,
 )
 stub_src = open(os.path.join(ROOT, "scripts", "stub-optimai-cli.sh"), encoding="utf-8").read()
 check(

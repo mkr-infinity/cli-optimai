@@ -139,6 +139,35 @@ class OptimaiCLI:
         rc, out, err = await self.run("rewards", "balance", timeout=15)
         return rc == 0, (out + err).strip()
 
+    async def node_stop(self) -> tuple[bool, str]:
+        """(ok, text) — executes `optimai-cli node stop` to shut down background node."""
+        rc, out, err = await self.run("node", "stop", timeout=15)
+        return rc == 0, (out + err).strip()
+
+    async def stop_mining_containers(self) -> int:
+        """Find and stop background Docker containers spawned for OptimAI/crawl4ai mining.
+        Returns the count of stopped containers."""
+        try:
+            rc, out, _ = await self.run_bin(
+                "docker", "ps", "--format", "{{.ID}} {{.Image}} {{.Names}}", timeout=10
+            )
+            if rc != 0 or not out.strip():
+                return 0
+            stopped = 0
+            for line in out.strip().splitlines():
+                parts = line.split()
+                if len(parts) >= 2:
+                    cid, img = parts[0], parts[1].lower()
+                    name = parts[2].lower() if len(parts) > 2 else ""
+                    if any(k in img or k in name for k in ("optimai", "crawl4ai", "crawler")):
+                        stop_rc, _, _ = await self.run_bin("docker", "stop", "-t", "5", cid, timeout=15)
+                        if stop_rc == 0:
+                            stopped += 1
+            return stopped
+        except Exception as exc:
+            log.debug("stop_mining_containers error: %s", exc)
+            return 0
+
     async def docker_server_version(self, force: bool = False) -> tuple[bool, str]:
         """Ask the HOST docker daemon (through the mounted socket at
         /var/run/docker.sock) for its server version using the docker CLI
