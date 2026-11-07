@@ -4,10 +4,11 @@
 SHELL := /bin/bash
 PY := .venv/bin/python
 
-.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs log compat readiness check-readiness
+.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs log compat readiness check-readiness start run
 
 help:
 	@echo "OptimAI CLI Developer Commands:"
+	@echo "  make start           launch bot and AI mining node"
 	@echo "  make venv            create Python 3.12 venv"
 	@echo "  make install         install runtime + dev deps into .venv"
 	@echo "  make test            run standalone smoke suite (no network)"
@@ -24,6 +25,11 @@ help:
 	@echo "  make env-check       verify .env file exists"
 	@echo "  make logs            tail docker compose container logs"
 	@echo "  make compose-config  validate docker-compose.yml with a dummy .env"
+
+start:
+	bash start.sh
+
+run: start
 
 venv:
 	uv venv --python 3.12 .venv

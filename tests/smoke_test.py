@@ -278,7 +278,10 @@ check("compat: RAM and storage limits are NOT enforced (advisory only)", "ram_mb
 c_termux, m_termux, d_termux = check_device_compatibility({"system": "Linux", "machine": "aarch64", "distro_id": "termux", "distro_name": "Termux Android (6.1.0)"})
 check("compat: Termux aarch64 reports Termux PRoot guidance in reason", "Termux" in m_termux and "PRoot" in m_termux)
 check("termux: setup-termux.sh, setup-termux-proot.sh and docs/DEPLOY-TERMUX.md exist", os.path.isfile(os.path.join(ROOT, "setup-termux.sh")) and os.path.isfile(os.path.join(ROOT, "setup-termux-proot.sh")) and os.path.isfile(os.path.join(ROOT, "docs", "DEPLOY-TERMUX.md")))
+check("launcher: start.sh launcher script exists and is executable", os.path.isfile(os.path.join(ROOT, "start.sh")) and os.access(os.path.join(ROOT, "start.sh"), os.X_OK))
 check("docs: docs/README.md master index exists and links guides", os.path.isfile(os.path.join(ROOT, "docs", "README.md")))
+for core_doc in ("DEPLOY-VPS.md", "DEPLOY-GCP.md", "DEPLOY-TERMUX.md", "DEPLOY-RAILWAY.md", "RUNBOOK.md", "DAILY-OPS.md", "BACKUP-RESTORE.md", "ARCHITECTURE.md", "ENV-VARS.md", "UPGRADING.md", "TROUBLESHOOTING-SWAP.md", "FAQ.md"):
+    check(f"docs: core guide docs/{core_doc} exists", os.path.isfile(os.path.join(ROOT, "docs", core_doc)))
 
 p_compat = subprocess.run(["bash", os.path.join(ROOT, "scripts", "check-compatibility.sh")], capture_output=True, text=True)
 check("compat: scripts/check-compatibility.sh runs and returns compatible output", p_compat.returncode == 0 and "COMPATIBLE" in p_compat.stdout)
