@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 PY := .venv/bin/python
 
-.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs
+.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs compat
 
 help:
 	@echo "OptimAI CLI Developer Commands:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make check           run compile + smoke tests"
 	@echo "  make validate        run compile + smoke tests verification"
 	@echo "  make clean           remove bytecode and cache artifacts"
+	@echo "  make compat          check OS & device compatibility"
 	@echo "  make diag            run system diagnostic script"
 	@echo "  make git-status      verify git working tree cleanliness"
 	@echo "  make check-all       run full checks and git status"
@@ -52,6 +53,9 @@ compose-config:
 	sed -i "s/^TELEGRAM_ALLOWED_IDS=$$/TELEGRAM_ALLOWED_IDS=123456789/" .env
 	docker compose config > /dev/null
 	rm .env
+
+compat:
+	bash scripts/check-compatibility.sh
 
 diag:
 	bash scripts/system-info.sh

@@ -32,6 +32,11 @@ from telegram.ext import (
 
 import bot
 _BOT_START_TIME = time.time()
+from bot.compatibility import (
+    check_device_compatibility,
+    download_compatible_cli,
+    get_compatible_cli_url,
+)
 from bot.config import Config, ConfigError
 from bot.gatekeeper import UnauthorizedGate
 from bot.login_session import LoginManager
@@ -356,9 +361,28 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_update_cli(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, _sup, _gate, _login = _wd(context)
+    compat, reason, details = check_device_compatibility()
+    if not compat:
+        await _reply(
+            update,
+            f"❌ <b>Device Incompatible with OptimAI CLI:</b>\n"
+            f"{html.escape(reason)}\n\n"
+            "<i>Note: RAM/storage minimums are not enforced; OS or CPU architecture is unsupported.</i>",
+        )
+        return
+
     await _reply(update, "⏳ Checking for OptimAI CLI updates...")
     rc, out, err = await cli.run("update", timeout=60)
     text = (out + "\n" + err).strip() or f"(exit code {rc})"
+
+    # If CLI binary is missing (rc=127) or update requests reinstallation, download the compatible binary
+    if rc == 127 or "reinstall" in text.lower():
+        cli_url = details.get("cli_url")
+        target_path = cfg.optimai_bin if os.path.isabs(cfg.optimai_bin) else shutil.which(cfg.optimai_bin) or "/usr/local/bin/optimai-cli"
+        await _reply(update, f"📥 Installing/updating compatible CLI from:\n<code>{cli_url}</code>\nTarget: <code>{target_path}</code>")
+        success, dl_msg = download_compatible_cli(target_path, url=cli_url)
+        text += f"\n\nInstall Result: {'✅' if success else '❌'} {dl_msg}"
+
     await _reply(update, f"🔄 <b>CLI Update Result:</b>\n<pre>{html.escape(text)}</pre>")
 
 
@@ -461,10 +485,13 @@ async def cmd_system(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     import platform, os
     cfg, _cli, _sup, _gate, _login = _wd(context)
     mode = "Local Machine" if cfg.is_local else "Container / Cloud"
+    compat, _, details = check_device_compatibility()
+    compat_badge = "✅ Compatible" if compat else "❌ Incompatible"
     await _reply(
         update,
         "🖥️ <b>System diagnostics</b>\n"
         f"Environment: <b>{mode}</b>\n"
+        f"Compatibility: <b>{compat_badge}</b> ({details.get('distro_name', '')}, {details.get('machine', '')})\n"
         f"Python: {platform.python_version()} ({platform.python_implementation()})\n"
         f"OS: {platform.system()} {platform.release()} ({platform.machine()})\n"
         f"CLI: <code>{cfg.optimai_bin}</code>\n"
@@ -481,10 +508,12 @@ async def cmd_healthcheck(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     data_ok = os.access(cfg.data_dir, os.W_OK)
     bin_ok = os.path.isfile(cfg.optimai_bin) and os.access(cfg.optimai_bin, os.X_OK)
     mode = "Local" if cfg.is_local else "Container"
+    compat, _, _ = check_device_compatibility()
     await _reply(
         update,
         "🩺 <b>Subsystem healthcheck</b>\n"
         f"Environment: <b>{mode}</b>\n"
+        f"Device compatible: {'✅ yes' if compat else '❌ no'}\n"
         f"Supervisor desired: <code>{snap['desired']}</code>\n"
         f"Circuit breaker: {snap['breaker']}\n"
         f"Data dir writable: {'✅ yes' if data_ok else '❌ no'}\n"
