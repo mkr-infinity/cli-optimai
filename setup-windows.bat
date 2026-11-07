@@ -1,7 +1,7 @@
 @echo off
 REM ============================================================
 REM setup-windows.bat — Batch Launcher for Windows Setup
-REM OptimAI Telegram Node (v1.3.0)
+REM OptimAI Telegram Node (v1.9.0)
 REM ============================================================
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup-windows.ps1"

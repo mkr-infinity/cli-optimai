@@ -1,6 +1,6 @@
 # Code of Conduct
 
-v1.3.0 — applies to mkr-infinity/cli-optimai and its community spaces.
+v1.9.0 — applies to mkr-infinity/cli-optimai and its community spaces.
 
 ## Our standards
 

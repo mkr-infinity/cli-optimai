@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # scripts/prompt-login.sh — Interactive Account Login Intake
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Offers the two official OptimAI login methods in terminal:
 # 1) Browser OAuth / Authorization Key

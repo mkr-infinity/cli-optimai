@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # scripts/sync-credentials.sh — Bi-directional Credential Synchronizer
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Synchronizes official OptimAI CLI authentication credentials and
 # identity between host user home ($HOME/.config/optimai-cli),

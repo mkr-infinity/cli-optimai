@@ -3,7 +3,7 @@
 > **Document Scope & Purpose:**
 > * **[README.md](README.md)** is the **user guide & quickstart**: architecture diagrams, 5-step deployment, full Telegram bot command list, and troubleshooting.
 > * **[docs/README.md](docs/README.md)** is the **engineering master index**: indexes all 65 comprehensive guides, deployment runbooks, security audits, and troubleshooting docs across 8 categories.
-> * **[ROADMAP.md](ROADMAP.md)** (this document) is the **strategic milestone & delivery ledger**: tracks shipped features version by version (v1.0 → v1.3), outlines upcoming deliverables for v1.4 and v2, records explicit architectural non-goals, and logs merged pull request milestones.
+> * **[ROADMAP.md](ROADMAP.md)** (this document) is the **strategic milestone & delivery ledger**: tracks shipped features version by version (v1.0 → v1.9), outlines upcoming deliverables for v2, records explicit architectural non-goals, and logs merged pull request milestones.
 
 Versioned, scope-honest plan. Deployed = merged to main and verified by CI.
 
@@ -54,6 +54,16 @@ Versioned, scope-honest plan. Deployed = merged to main and verified by CI.
 - [x] Automated 10-point pre-flight subsystem readiness checker (`scripts/check-readiness.sh`, `make readiness`)
 - [x] Master documentation roadmap (`docs/README.md`) indexing all 65 engineering guides across 8 categories
 - [x] 143-check offline verification suite
+
+## v1.9 (shipped)
+
+- [x] Bi-directional terminal and container credential synchronization (`scripts/sync-credentials.sh`)
+- [x] Official OptimAI CLI installation syntax: `chmod +x` and `sudo mv ... /usr/local/bin/optimai-cli` across all platforms
+- [x] Terminal pre/post execution sync wrapper for Codespaces and cloud shells
+- [x] Complete bot command alias set (`/sync`, `/node`, `/auth`, `/restart`, `/reward`, `/balance`)
+- [x] Interactive dual-method login flows with re-login dialog and active session controls
+- [x] Mirroring and persistence of `credentials.json` database across `./data` directory fallbacks
+- [x] 179-check comprehensive offline verification suite
 
 ## v1.4 (next)
 

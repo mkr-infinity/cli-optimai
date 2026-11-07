@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # setup-codespaces.sh — Automated Setup for GitHub Codespaces
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Configures the complete 24/7 supervisor bot, official mining CLI,
 # Python virtual environment and dependencies inside GitHub Codespaces.

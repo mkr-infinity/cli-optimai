@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # setup.sh — Universal Auto-Detecting Installer
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Detects the operating environment (GitHub Codespaces, Android Termux,
 # Linux VPS/Bare-Metal, macOS, or Windows) and runs the tailored setup.

@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.9.0 — 2026-11-08
+
+### Added
+- Bi-directional credential synchronization between container / database / host terminal (`scripts/sync-credentials.sh`, `bot/config.py`).
+- Official OptimAI CLI installation syntax: `chmod +x optimai-cli` and `sudo mv optimai-cli /usr/local/bin/optimai-cli` across all setup scripts.
+- Pre/post execution sync wrapper in `/usr/local/bin/optimai-cli` to keep Codespaces and VPS terminals authenticated in real time.
+- Bot command aliases and controls: `/sync`, `/node`, `/auth`, `/restart`, `/reward`, `/balance`, `/startnode`, `/stopnode`, `/restartnode`, `/nodestatus`.
+- Direct dual authentication flows: `/login` (OAuth browser), `/login --legacy` (email/password), and `/login_legacy` with active re-login inspection dialog.
+- Mirroring of credentials database (`credentials.json`) across parent and alternate `./data` folders.
+- Repository rename updates to `https://github.com/mkr-infinity/cli-optimai`.
+- Expanded smoke test verification suite to 179/179 automated checks with 100% pass rate.
+
 ## v1.3.0 — 2026-11-07
 
 ### Added

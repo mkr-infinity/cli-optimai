@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # scripts/check-readiness.sh — Pre-Flight Miner Readiness Checker
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Validates every required component for the OptimAI miner:
 # binary, daemon, multiplexer, networking, python, storage & env.
