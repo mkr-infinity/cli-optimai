@@ -143,7 +143,9 @@ async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> t
     sup.update_health(authenticated, docker_ok)
     snap = sup.snapshot()
 
-    distro_name, machine = get_os_info()
+    os_info = get_os_info()
+    distro_name = os_info.get("distro_name", "Linux")
+    machine = os_info.get("machine", "x86_64")
     if "termux" in distro_name.lower():
         mode = "Android Termux"
     elif cfg.is_local:

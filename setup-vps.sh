@@ -110,15 +110,30 @@ fi
 step "2/5 Installing compatible OptimAI CLI miner binary from official website"
 CLI_URL="https://cli-node.optimai.network/optimai_cli_ubuntu"
 
-if command -v optimai-cli >/dev/null 2>&1; then
+info "Downloading and configuring official OptimAI CLI binary from $CLI_URL"
+if curl -fsSL "$CLI_URL" -o /usr/local/bin/optimai-bin && chmod +x /usr/local/bin/optimai-bin; then
+  cat <<'EOF' > /usr/local/bin/optimai-cli
+#!/usr/bin/env bash
+args=()
+for arg in "$@"; do
+  if [ "$arg" = "-v" ]; then
+    args+=("--version")
+  else
+    args+=("$arg")
+  fi
+done
+exec /usr/local/bin/optimai-bin "${args[@]}"
+EOF
+  chmod +x /usr/local/bin/optimai-cli
+  # Prime core CLI immediately
+  /usr/local/bin/optimai-cli --help >/dev/null 2>&1 || true
+  CLI_VER="$(/usr/local/bin/optimai-cli --version 2>/dev/null || echo 'ready')"
+  printf "${C_GREEN}[ok]${C_OFF} Installed and primed optimai-cli (%s)\n" "$CLI_VER"
+elif command -v optimai-cli >/dev/null 2>&1; then
+  optimai-cli --help >/dev/null 2>&1 || true
   warn "optimai-cli already installed: $(optimai-cli --version 2>/dev/null || echo 'present')"
 else
-  info "Downloading compatible CLI binary from $CLI_URL"
-  if curl -fsSL "$CLI_URL" -o /usr/local/bin/optimai-cli && chmod +x /usr/local/bin/optimai-cli; then
-    printf "${C_GREEN}[ok]${C_OFF} Installed optimai-cli to /usr/local/bin/optimai-cli (%s)\n" "$(/usr/local/bin/optimai-cli --version 2>/dev/null || echo 'ready')"
-  else
-    warn "optimai-cli host download skipped (image bundles it)"
-  fi
+  warn "optimai-cli host download skipped (image bundles it)"
 fi
 
 # 3) Enable and start docker service ----------------------------------------
@@ -158,12 +173,23 @@ else
   info "Swap status: $(swap_mb) MB (advisory)"
 fi
 
-# 5) Ensure persistent directories and environment configuration ------------
-step "5/5 Initializing storage directories and environment"
+# 5) Ensure persistent directories, Python environment & configuration -------
+step "5/5 Initializing storage directories, Python venv & environment"
 mkdir -p ./data/data ./data/home ~/.optimai
 if [ ! -f .env ] && [ -f .env.example ]; then
   cp .env.example .env
   info "Created initial .env from .env.example template"
+fi
+
+if command -v python3 >/dev/null 2>&1; then
+  if [ ! -d ".venv" ]; then
+    python3 -m venv .venv || true
+  fi
+  if [ -x ".venv/bin/pip" ]; then
+    .venv/bin/pip install --upgrade pip -q >/dev/null 2>&1 || true
+    .venv/bin/pip install -r requirements.txt -q || true
+    info "Python virtual environment (.venv) configured with required dependencies"
+  fi
 fi
 
 # Run comprehensive pre-flight readiness checklist

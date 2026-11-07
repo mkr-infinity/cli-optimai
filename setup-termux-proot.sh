@@ -36,13 +36,27 @@ else
 fi
 
 step "3/4 Installing QEMU emulation & official OptimAI CLI in Ubuntu"
-info "Configuring x86_64 emulation and downloading optimai-cli..."
+info "Configuring x86_64 emulation, downloading and priming optimai-cli..."
 proot-distro login ubuntu -- bash -c '
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y -q
   apt-get install -y -q curl ca-certificates qemu-user-static
-  curl -fsSL "https://cli-node.optimai.network/optimai_cli_ubuntu" -o /usr/local/bin/optimai-cli
+  curl -fsSL "https://cli-node.optimai.network/optimai_cli_ubuntu" -o /usr/local/bin/optimai-bin
+  chmod +x /usr/local/bin/optimai-bin
+  cat <<INNER_EOF > /usr/local/bin/optimai-cli
+#!/usr/bin/env bash
+args=()
+for arg in "\$@"; do
+  if [ "\$arg" = "-v" ]; then
+    args+=("--version")
+  else
+    args+=("\$arg")
+  fi
+done
+exec /usr/local/bin/optimai-bin "\${args[@]}"
+INNER_EOF
   chmod +x /usr/local/bin/optimai-cli
+  /usr/local/bin/optimai-cli --help >/dev/null 2>&1 || true
 '
 
 step "4/4 Creating transparent Termux CLI bridge"
@@ -55,7 +69,15 @@ mkdir -p "$PREFIX_DIR/bin" "$HOME/.local/bin"
 cat <<'EOF' > "$WRAPPER_PATH"
 #!/usr/bin/env bash
 # Transparent bridge from Termux into PRoot Ubuntu x86_64 emulation
-exec proot-distro login ubuntu -- /usr/local/bin/optimai-cli "$@"
+args=()
+for arg in "$@"; do
+  if [ "$arg" = "-v" ]; then
+    args+=("--version")
+  else
+    args+=("$arg")
+  fi
+done
+exec proot-distro login ubuntu -- /usr/local/bin/optimai-cli "${args[@]}"
 EOF
 chmod +x "$WRAPPER_PATH"
 cp -f "$WRAPPER_PATH" "$USER_BIN"

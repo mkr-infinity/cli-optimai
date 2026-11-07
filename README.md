@@ -34,30 +34,27 @@ Autonomous 24/7 supervisor and Telegram management bot for the official OptimAI 
 
 ## 🚀 Quickstart: 3 Steps to Launch
 
-### 1. Clone & Configure
+### 1. Clone & Automated Setup
 ```bash
 git clone https://github.com/mkr-infinity/optimai-cli.git && cd optimai-cli
-cp .env.example .env
-nano .env
+bash setup.sh
 ```
-Fill in your two required values in `.env`:
+> [!NOTE]
+> `bash setup.sh` automatically detects your environment (GitHub Codespaces, Android Termux, Linux VPS, macOS, or Windows) and provisions the required packages, downloads and primes the official OptimAI CLI, and creates `.env`.
+
+### 2. Configure Telegram Credentials
+Edit `.env` with your editor of choice (`nano .env` or `notepad .env`):
 * `TELEGRAM_BOT_TOKEN`: Token obtained from [@BotFather](https://t.me/BotFather).
 * `TELEGRAM_ALLOWED_IDS`: Your numeric Telegram ID (obtain via [@userinfobot](https://t.me/userinfobot) or send `/id` to the bot).
 
-### 2. Start Bot & Miner
+### 3. Start Bot & Miner
 ```bash
 bash start.sh
-# or: make start
+# or: make start (on Windows: .\start.bat)
 ```
 
 > [!TIP]
-> `bash start.sh` auto-detects your platform: it runs via Docker Compose on VPS/PC when Docker is present, or through a detached `screen` session for native Linux and Android Termux.
-
-### 3. Open Telegram & Begin
-Open your bot in Telegram:
-* Send `/start` to view the system overview card.
-* Send `/login` to sign in via browser OAuth URL, or `/login <email> <password>`.
-* Send `/status` or `/rewards` to monitor your node!
+> `bash start.sh` auto-detects your platform: it runs via Docker Compose when Docker is present, or through a detached `screen` session for native Linux, GitHub Codespaces, and Android Termux. Both the Telegram supervisor bot and the OptimAI AI miner launch together automatically.
 
 ---
 
@@ -65,10 +62,12 @@ Open your bot in Telegram:
 
 | Platform | Quick Command | Detailed Guide |
 |---|---|---|
+| **GitHub Codespaces** (1-Click in-browser cloud mining) | `bash setup-codespaces.sh && bash start.sh` | Open in Codespaces, configure `.env`, and start |
 | **Cloud VPS / Linux Host** (Ubuntu, Debian, Arch, Fedora) | `sudo bash setup-vps.sh && bash start.sh` | [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) |
 | **Google Cloud (GCP)** (Compute Engine VM) | `sudo bash setup-vps.sh && bash start.sh` | [docs/DEPLOY-GCP.md](docs/DEPLOY-GCP.md) |
 | **Android Phone / Tablet** (Termux 24/7 mobile mining) | `bash setup-termux.sh && bash start.sh` | [docs/DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md) |
-| **Local Machine** (macOS, Windows, Linux) | `bash start.sh` or `docker compose up -d` | Run locally with Docker Desktop |
+| **Windows PC** (Native PowerShell & CMD background node) | `.\setup-windows.bat && .\start.bat` | Run PowerShell setup and launch |
+| **macOS** (Apple Silicon M1-M4 & Intel Mac) | `bash setup.sh && bash start.sh` | Run universal setup and launch |
 
 > [!WARNING]
 > Google Cloud's Acceptable Use Policy restricts computational and crypto mining on **Free Trial ($300 credit) accounts**. For a suspension-free experience, use standard paid accounts, dedicated VPS hosts, or Android Termux.
