@@ -58,12 +58,15 @@ from bot.config import (  # noqa: E402
     ConfigError,
     clear_credential_database,
     find_local_optimai_bin,
+    get_env_file_path,
     is_local_environment,
     load_credential_database,
     load_dotenv,
+    mask_secret,
     restore_credentials_from_database,
     save_credential_database,
     sync_local_credentials,
+    update_env_file,
 )
 from bot.compatibility import (  # noqa: E402
     check_device_compatibility,
@@ -192,6 +195,18 @@ parsed_env = load_dotenv(sample_env_file)
 check(
     "config: load_dotenv parses keys, values and quotes",
     parsed_env.get("FOO") == "bar" and parsed_env.get("QUOTED") == "hello world" and parsed_env.get("EMPTY") == "",
+)
+update_env_file("NEW_KEY", "new_val", path=sample_env_file)
+reloaded = load_dotenv(sample_env_file)
+check(
+    "config: update_env_file updates and appends to .env file",
+    reloaded.get("NEW_KEY") == "new_val" and reloaded.get("FOO") == "bar",
+)
+check(
+    "config: mask_secret masks secrets and preserves non-secrets",
+    mask_secret("TELEGRAM_BOT_TOKEN", "123456789:ABCDEF") == "123456...CDEF"
+    and mask_secret("NODE_AUTO_START", "true") == "true"
+    and mask_secret("SECRET_KEY", "short") == "********",
 )
 check(
     "config: is_local_environment returns boolean",
@@ -667,7 +682,7 @@ with open(os.path.join(ROOT, "bot", "main.py"), encoding="utf-8") as fh:
 
 for cmd in (
     "help", "status", "start_node", "stop_node", "restart_node", "rewards", "rewardadded",
-    "logs", "log", "watch", "login", "auth_status", "me", "logout", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy", "screen",
+    "logs", "log", "watch", "login", "auth_status", "me", "logout", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy", "screen", "env", "setenv",
 ):
     check(
         f"main: /{cmd} handler registered",
@@ -742,6 +757,14 @@ check(
 check(
     "main: build_welcome_card helper exists",
     "build_welcome_card" in src and "Welcome to OptimAI Telegram Node" in src,
+)
+check(
+    "main: cmd_env and cmd_setenv helpers exist",
+    "async def cmd_env" in src and "async def cmd_setenv" in src,
+)
+check(
+    "main: _execute_email_password_login helper exists",
+    "async def _execute_email_password_login" in src,
 )
 from bot.main import build_welcome_card  # noqa: E402
 test_cfg = Config.load(env=base_env())

@@ -16,6 +16,7 @@ import html
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,10 +47,14 @@ from bot.config import (
     Config,
     ConfigError,
     clear_credential_database,
+    get_env_file_path,
     load_credential_database,
+    load_dotenv,
+    mask_secret,
     restore_credentials_from_database,
     save_credential_database,
     sync_local_credentials,
+    update_env_file,
 )
 from bot.gatekeeper import UnauthorizedGate
 from bot.login_session import LoginManager
@@ -212,6 +217,7 @@ async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> t
         "/screen — View detached 24/7 background worker session\n"
         "/rewards — Check mining points & rewards balance\n"
         "/rewardadded — Toggle real-time reward alerts (on/off)\n"
+        "/env — View & configure environment (.env)\n"
         "/logs — View recent node log output\n"
         "/login — Authenticate your OptimAI account\n"
         "/help — View complete command catalog\n\n"
@@ -270,6 +276,8 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/cancel — cancel pending login session\n\n"
         "<b>System & Diagnostics:</b>\n"
         "/update_cli (or /update) — update official optimai-cli\n"
+        "/env — view active environment configuration (.env)\n"
+        "/setenv [KEY VALUE] — update .env configuration directly\n"
         "/version — bot + CLI versions\n"
         "/ping — test bot responsiveness\n"
         "/uptime — node supervisor uptime and state\n"
@@ -519,50 +527,105 @@ async def cmd_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await _reply(update, f"👁 Watch ended ({seconds}s). No new node output appeared.")
 
 
+async def _execute_email_password_login(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    email: str,
+    password: str,
+) -> None:
+    cfg, cli, sup, _gate, login = _wd(context)
+    context.user_data.pop("awaiting_credentials_until", None)
+    await _reply(update, "⏳ Attempting direct email & password authentication...")
+    ok, msg = await login.login_legacy(email, password)
+    if ok:
+        if cfg.is_local:
+            sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+        auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
+        if os.path.isfile(auth_file):
+            try:
+                snap_data = json.load(open(auth_file))
+                user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
+                u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
+                save_credential_database(
+                    cfg.credentials_path(),
+                    {
+                        "email": email,
+                        "auth_type": "legacy",
+                        "auth_snapshot": snap_data,
+                        "user_snapshot": u_snap,
+                        "updated_at": time.time(),
+                    },
+                )
+            except Exception:
+                pass
+        docker_ok, _ = await cli.docker_server_version()
+        auto_msg = ""
+        if cfg.node_auto_start and docker_ok and not sup.running:
+            pid = await sup.request_start()
+            auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
+        await _reply(
+            update,
+            f"✅ <b>Login successful</b>\n\n{html.escape(msg)}\n<i>Credentials saved to database.</i>{auto_msg}\n\n"
+            f"{'Use /status to monitor mining.' if auto_msg else 'Use /start_node to start mining!'}",
+        )
+    else:
+        await _reply(
+            update,
+            f"❌ <b>Login failed</b>\n\n{html.escape(msg)}\n\n"
+            "Check your credentials or choose Method 1 (Browser OAuth) below.",
+        )
+
+
 async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, login = _wd(context)
     if await cli.is_authenticated():
         await _reply(update, "✅ Already authenticated. Use /auth_status for details.")
         return
 
-    # Check for direct email + password arguments: /login <email> <password>
-    if context.args and len(context.args) >= 2:
-        email = context.args[0]
-        password = context.args[1]
-        await _reply(update, "⏳ Attempting email & password authentication...")
-        ok, msg = await login.login_legacy(email, password)
-        if ok:
-            if cfg.is_local:
-                sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
-            auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
-            if os.path.isfile(auth_file):
-                try:
-                    snap_data = json.load(open(auth_file))
-                    user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
-                    u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
-                    save_credential_database(
-                        cfg.credentials_path(),
-                        {"email": email, "auth_type": "legacy", "auth_snapshot": snap_data, "user_snapshot": u_snap, "updated_at": time.time()}
-                    )
-                except Exception:
-                    pass
-            docker_ok, _ = await cli.docker_server_version()
-            auto_msg = ""
-            if cfg.node_auto_start and docker_ok and not sup.running:
-                pid = await sup.request_start()
-                auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
-            await _reply(
-                update,
-                f"✅ <b>Login successful</b>\n\n{html.escape(msg)}\n<i>Credentials saved to database.</i>{auto_msg}\n\n"
-                f"{'Use /status to monitor mining.' if auto_msg else 'Use /start_node to start mining!'}",
+    # Direct arguments handling:
+    # 1) /login oauth (or 1) -> launch Method 1 directly
+    # 2) /login email (or 2) -> launch Method 2 direct intake prompt
+    # 3) /login <email> <password> -> execute Method 2 direct authentication
+    if context.args:
+        first = context.args[0].lower().strip()
+        if len(context.args) == 1 and first in ("oauth", "1", "browser"):
+            url = await login.start()
+            if not url:
+                await _reply(update, "❌ Could not start OAuth login flow. Try again or use Method 2 (Email & Password).")
+                return
+            oauth_text = (
+                "🌐 <b>Method 1: Browser OAuth Key Login</b>\n\n"
+                "1. Tap <b>Open Login Page</b> below to sign in on your browser.\n"
+                "2. After signing in, copy the authorization key or the full redirect URL.\n"
+                "3. <b>Paste the key or URL directly here</b> in this chat.\n\n"
+                "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
             )
-        else:
-            await _reply(
-                update,
-                f"❌ <b>Login failed</b>\n\n{html.escape(msg)}\n\n"
-                "Check your credentials or use the browser login flow.",
+            oauth_kbd = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔑 Open Login Page", url=url)],
+                [InlineKeyboardButton("❌ Cancel Login", callback_data="login_cancel")],
+            ])
+            await _reply(update, oauth_text, oauth_kbd)
+            return
+
+        if len(context.args) == 1 and first in ("email", "2", "password", "direct"):
+            context.user_data["awaiting_credentials_until"] = time.monotonic() + 180
+            pwd_text = (
+                "📧 <b>Method 2: Direct Email & Password Login</b>\n\n"
+                "Please enter your OptimAI account credentials.\n\n"
+                "You can reply directly in this chat with:\n"
+                "<code>your_email@example.com your_password</code>\n\n"
+                "Or send:\n"
+                "<code>/login your_email@example.com your_password</code>\n\n"
+                "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
             )
-        return
+            await _reply(update, pwd_text)
+            return
+
+        if len(context.args) >= 2:
+            email = context.args[0]
+            password = context.args[1]
+            await _execute_email_password_login(update, context, email, password)
+            return
 
     # No arguments: present the two official login methods
     text = (
@@ -615,6 +678,132 @@ async def cmd_update_cli(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         text += f"\n\nInstall Result: {'✅' if success else '❌'} {dl_msg}"
 
     await _reply(update, f"🔄 <b>CLI Update Result:</b>\n<pre>{html.escape(text)}</pre>")
+
+
+async def cmd_env(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """View current environment configuration (.env) with sensitive secrets masked."""
+    cfg, _cli, _sup, _gate, _login = _wd(context)
+    env_path = get_env_file_path()
+    dotenv = load_dotenv(env_path) if os.path.isfile(env_path) else {}
+
+    keys_order = [
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_ALLOWED_IDS",
+        "NODE_AUTO_START",
+        "LOG_TAIL_LINES",
+        "WATCH_SECONDS",
+        "LOGIN_TTL_MINUTES",
+        "ENABLE_HEALTH_PORT",
+        "TZ",
+        "CONTACT_USERNAME",
+        "UNAUTH_MAX_MESSAGES",
+        "OPTIMAI_HOME",
+        "DATA_DIR",
+    ]
+    lines = [
+        "⚙️ <b>Active Environment Configuration</b>",
+        f"<i>Source: <code>{html.escape(env_path)}</code></i>\n",
+    ]
+
+    for k in keys_order:
+        val = dotenv.get(k) or os.environ.get(k, "")
+        masked = mask_secret(k, val) if val else "<i>(not set)</i>"
+        lines.append(f"• <b>{k}:</b> <code>{html.escape(masked)}</code>")
+
+    # Any other custom keys in .env
+    for k, v in dotenv.items():
+        if k not in keys_order and not k.startswith("#"):
+            lines.append(f"• <b>{html.escape(k)}:</b> <code>{html.escape(mask_secret(k, v))}</code>")
+
+    lines.append(
+        "\n📝 <b>To update any variable:</b>\n"
+        "Send: <code>/setenv KEY VALUE</code>\n"
+        "Example: <code>/setenv NODE_AUTO_START true</code>"
+    )
+    await _reply(update, "\n".join(lines))
+
+
+async def cmd_setenv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Set or update an environment variable directly from Telegram."""
+    cfg, _cli, _sup, _gate, login = _wd(context)
+    if not context.args:
+        help_text = (
+            "⚙️ <b>Environment Variable Editor (/setenv)</b>\n\n"
+            "Update your configuration directly from Telegram without SSH or editing files:\n\n"
+            "<b>Usage:</b> <code>/setenv KEY VALUE</code> (or <code>/setenv KEY=VALUE</code>)\n\n"
+            "<b>Common Settings:</b>\n"
+            "• <code>/setenv NODE_AUTO_START true</code> (or false)\n"
+            "• <code>/setenv TELEGRAM_ALLOWED_IDS 6602332612</code>\n"
+            "• <code>/setenv LOG_TAIL_LINES 50</code>\n"
+            "• <code>/setenv WATCH_SECONDS 180</code>\n"
+            "• <code>/setenv LOGIN_TTL_MINUTES 3</code>\n"
+            "• <code>/setenv CONTACT_USERNAME my_handle</code>\n"
+            "• <code>/setenv TELEGRAM_BOT_TOKEN 123456:ABC...</code>\n\n"
+            "<i>Send /env at any time to view all configured variables.</i>"
+        )
+        await _reply(update, help_text)
+        return
+
+    raw = " ".join(context.args).strip()
+    if "=" in raw:
+        key, val = raw.split("=", 1)
+    else:
+        parts = raw.split(None, 1)
+        key = parts[0]
+        val = parts[1] if len(parts) > 1 else ""
+
+    key = key.strip().upper()
+    val = val.strip()
+
+    if not re.match(r"^[A-Z0-9_]+$", key):
+        await _reply(update, "❌ Invalid environment key. Use uppercase letters, numbers, and underscores (e.g. <code>NODE_AUTO_START</code>).")
+        return
+
+    env_path = update_env_file(key, val)
+    os.environ[key] = val
+
+    # Dynamically apply to running Config
+    if key == "NODE_AUTO_START":
+        cfg.node_auto_start = val.lower() in ("true", "1", "yes", "on")
+    elif key == "LOG_TAIL_LINES":
+        try:
+            cfg.log_tail_lines = max(1, min(500, int(val)))
+        except ValueError:
+            pass
+    elif key == "WATCH_SECONDS":
+        try:
+            cfg.watch_seconds = max(10, min(600, int(val)))
+        except ValueError:
+            pass
+    elif key == "LOGIN_TTL_MINUTES":
+        try:
+            cfg.login_ttl_minutes = max(1, int(val))
+            login.ttl_seconds = max(60, cfg.login_ttl_minutes * 60)
+        except ValueError:
+            pass
+    elif key == "CONTACT_USERNAME":
+        cfg.contact_username = val.lstrip("@")
+    elif key == "UNAUTH_MAX_MESSAGES":
+        try:
+            cfg.unauth_max_messages = max(0, min(10, int(val)))
+        except ValueError:
+            pass
+    elif key == "TELEGRAM_ALLOWED_IDS":
+        try:
+            new_ids = {int(x.strip()) for x in val.split(",") if x.strip()}
+            cfg.allowed_ids = new_ids
+        except ValueError:
+            pass
+
+    masked_val = mask_secret(key, val)
+    await _reply(
+        update,
+        f"✅ <b>Environment variable saved:</b>\n"
+        f"• <b>Key:</b> <code>{html.escape(key)}</code>\n"
+        f"• <b>Value:</b> <code>{html.escape(masked_val)}</code>\n"
+        f"• <b>File:</b> <code>{html.escape(env_path)}</code>\n\n"
+        f"<i>Configuration written to .env and applied to active session.</i>",
+    )
 
 
 async def cmd_auth_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -757,17 +946,23 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if query.message:
             await query.message.reply_text(oauth_text, reply_markup=oauth_kbd, parse_mode=ParseMode.HTML)
     elif data == "login_method_password":
+        context.user_data["awaiting_credentials_until"] = time.monotonic() + 180
         pwd_text = (
             "📧 <b>Method 2: Direct Email & Password Login</b>\n\n"
-            "To log in directly with your registered OptimAI account credentials, send:\n\n"
+            "Please provide your registered OptimAI email and password.\n\n"
+            "You can:\n"
+            "1. <b>Reply directly in this chat</b> with:\n"
+            "<code>your_email@example.com your_password</code>\n\n"
+            "2. Or send the command:\n"
             "<code>/login your_email@example.com your_password</code>\n\n"
-            "<i>Your credentials are transmitted directly to the local CLI and never logged or exposed.</i>"
+            "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
         )
         if query.message:
             await query.message.reply_text(pwd_text, parse_mode=ParseMode.HTML)
     elif data == "login_cancel":
         cancelled = await _login.cancel()
-        msg = "✅ Login session cancelled." if cancelled else "ℹ️ No pending login session."
+        had_creds = bool(context.user_data.pop("awaiting_credentials_until", None))
+        msg = "✅ Login session cancelled." if (cancelled or had_creds) else "ℹ️ No pending login session."
         if query.message:
             await query.message.reply_text(msg)
 
@@ -775,7 +970,8 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, login = _wd(context)
     cancelled = await login.cancel()
-    if cancelled:
+    had_creds = bool(context.user_data.pop("awaiting_credentials_until", None))
+    if cancelled or had_creds:
         await _reply(update, "🚫 Pending login session cancelled.")
     else:
         await _reply(update, "ℹ️ No pending login session.")
@@ -903,39 +1099,56 @@ async def cmd_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def on_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Admin plain text while a login session is pending = pasted redirect."""
+    """Admin plain text: handles OAuth paste or direct email/password login."""
     cfg, cli, sup, _gate, login = _wd(context)
-    if not login.has_pending:
-        return  # ignore friendly chat
     message = update.effective_message
     if message is None or not message.text:
         return
-    ok, summary = await login.submit(message.text)
-    header = (
-        "✅ Login successful — OptimAI session saved." if ok else "❌ Login failed:"
-    )
-    tail = summary[:1500]
-    auto_msg = ""
-    if ok:
-        if cfg.is_local:
-            sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
-        auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
-        if os.path.isfile(auth_file):
-            try:
-                snap_data = json.load(open(auth_file))
-                user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
-                u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
-                save_credential_database(
-                    cfg.credentials_path(),
-                    {"auth_type": "oauth", "auth_snapshot": snap_data, "user_snapshot": u_snap, "updated_at": time.time()}
-                )
-            except Exception:
-                pass
-        docker_ok, _ = await cli.docker_server_version()
-        if cfg.node_auto_start and docker_ok and not sup.running:
-            pid = await sup.request_start()
-            auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
-    await _reply(update, f"{header}\n\n<pre>{html.escape(tail)}</pre>{auto_msg}")
+
+    text = message.text.strip()
+    awaiting_creds = context.user_data.get("awaiting_credentials_until", 0) > time.monotonic()
+    parts = text.split()
+    looks_like_creds = len(parts) >= 2 and "@" in parts[0]
+
+    # Handle Method 2: Direct email & password entered in chat
+    if awaiting_creds or (looks_like_creds and not login.has_pending):
+        email = parts[0]
+        password = " ".join(parts[1:])
+        await _execute_email_password_login(update, context, email, password)
+        return
+
+    # Handle Method 1: Browser OAuth redirect URL or key paste
+    if login.has_pending:
+        ok, summary = await login.submit(text)
+        header = (
+            "✅ Login successful — OptimAI session saved." if ok else "❌ Login failed:"
+        )
+        tail = summary[:1500]
+        auto_msg = ""
+        if ok:
+            if cfg.is_local:
+                sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+            auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
+            if os.path.isfile(auth_file):
+                try:
+                    snap_data = json.load(open(auth_file))
+                    user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
+                    u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
+                    save_credential_database(
+                        cfg.credentials_path(),
+                        {"auth_type": "oauth", "auth_snapshot": snap_data, "user_snapshot": u_snap, "updated_at": time.time()}
+                    )
+                except Exception:
+                    pass
+            docker_ok, _ = await cli.docker_server_version()
+            if cfg.node_auto_start and docker_ok and not sup.running:
+                pid = await sup.request_start()
+                auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
+        await _reply(update, f"{header}\n\n<pre>{html.escape(tail)}</pre>{auto_msg}")
+        return
+
+    # Ignore ordinary friendly chat
+    return
 
 
 async def unauthorized_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1101,6 +1314,8 @@ def register_handlers(app: Application, admin_filter) -> None:
         CommandHandler("cancel", cmd_cancel, filters=admin_filter),
         CommandHandler("update_cli", cmd_update_cli, filters=admin_filter),
         CommandHandler("update", cmd_update_cli, filters=admin_filter),
+        CommandHandler("env", cmd_env, filters=admin_filter),
+        CommandHandler("setenv", cmd_setenv, filters=admin_filter),
         CommandHandler("version", cmd_version, filters=admin_filter),
         CommandHandler("ping", cmd_ping, filters=admin_filter),
         CommandHandler("uptime", cmd_uptime, filters=admin_filter),

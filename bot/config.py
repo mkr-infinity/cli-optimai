@@ -63,6 +63,53 @@ def load_dotenv(path: str = ".env") -> dict[str, str]:
     return loaded
 
 
+def get_env_file_path() -> str:
+    """Find the active .env file or default to root .env."""
+    for candidate in [".env", os.path.join(os.path.dirname(__file__), "..", ".env")]:
+        cand_path = os.path.abspath(candidate)
+        if os.path.isfile(cand_path):
+            return cand_path
+    return os.path.abspath(".env")
+
+
+def update_env_file(key: str, value: str, path: str | None = None) -> str:
+    """Update or append an environment variable in the .env file."""
+    env_path = path or get_env_file_path()
+    lines: list[str] = []
+    found = False
+    if os.path.isfile(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped.startswith(f"{key}=") or stripped.startswith(f"{key} ="):
+                    lines.append(f"{key}={value}\n")
+                    found = True
+                else:
+                    lines.append(line)
+    if not found:
+        if lines and not lines[-1].endswith("\n"):
+            lines.append("\n")
+        lines.append(f"{key}={value}\n")
+
+    tmp = env_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+    os.replace(tmp, env_path)
+    return env_path
+
+
+def mask_secret(key: str, val: str) -> str:
+    """Mask sensitive keys (tokens, keys, secrets, passwords)."""
+    if not val:
+        return "(empty)"
+    low = key.lower()
+    if any(s in low for s in ("token", "secret", "pass", "key")):
+        if len(val) <= 8:
+            return "********"
+        return f"{val[:6]}...{val[-4:]}"
+    return val
+
+
 def is_local_environment() -> bool:
     """True if running bare-metal on a developer/local machine rather than
     inside a Docker container or cloud deployment."""
