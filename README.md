@@ -103,6 +103,8 @@ All commands directly interface with the official upstream `optimai-cli`:
 | `/logs` (or `/log`) | `tail -n 40 node.log` | Admin | View last 40 lines of node logs in Telegram |
 | `/watch [sec]` | `tail -f node.log` | Admin | Live streaming log tail in Telegram (10–600s) |
 | `/update_cli` | `optimai-cli update` | Admin | Check for and install upstream CLI updates |
+| `/env` | Environment Reader | Admin | View active configuration (.env) with masked secrets |
+| `/setenv [KEY VAL]` | Environment Editor | Admin | Update .env configuration and runtime settings directly |
 | `/ping` | Control-plane probe | Admin | Check bot response latency (< 50ms) |
 | `/uptime` | Supervisor metric | Admin | View bot and node supervisor uptime |
 | `/help` | — | Admin | Show full command reference |
