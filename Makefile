@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 PY := .venv/bin/python
 
-.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs log compat
+.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs log compat readiness check-readiness
 
 help:
 	@echo "OptimAI CLI Developer Commands:"
@@ -17,6 +17,7 @@ help:
 	@echo "  make validate        run compile + smoke tests verification"
 	@echo "  make clean           remove bytecode and cache artifacts"
 	@echo "  make compat          check OS & device compatibility"
+	@echo "  make readiness       run preflight readiness checker"
 	@echo "  make diag            run system diagnostic script"
 	@echo "  make git-status      verify git working tree cleanliness"
 	@echo "  make check-all       run full checks and git status"
@@ -56,6 +57,11 @@ compose-config:
 
 compat:
 	bash scripts/check-compatibility.sh
+
+readiness: check-readiness
+
+check-readiness:
+	bash scripts/check-readiness.sh
 
 diag:
 	bash scripts/system-info.sh

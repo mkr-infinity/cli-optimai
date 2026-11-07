@@ -26,10 +26,11 @@ ssh root@YOUR_VPS_IP
 bash setup-vps.sh
 ```
 
-It: upgrades apt → installs Docker Engine + compose plugin (get.docker.com) →
+It: upgrades packages → installs Docker Engine + compose plugin + screen + Python 3 →
+downloads and configures the official OptimAI CLI miner binary (`/usr/local/bin/optimai-cli`) →
 `systemctl enable --now docker` → guarantees >= 2G swap (fallocate/mkswap/
-swapon, fstab, swappiness=10) → runs preflight checks (service active,
-compose present, socket present, swap ok) before printing next steps.
+swapon, fstab, swappiness=10) → runs the automated 10-point pre-flight readiness checklist (`[✅ PASSED]`)
+verifying all miner requirements before printing next steps.
 
 ## 3. Configure ONLY the 2 required values
 

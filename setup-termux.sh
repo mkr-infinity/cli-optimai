@@ -131,6 +131,11 @@ echo "• Manage node from phone:  Open your bot in Telegram"
 EOF
 chmod +x run-termux.sh
 
+# 6. Run visual pre-flight readiness check
+if [ -f scripts/check-readiness.sh ]; then
+  bash scripts/check-readiness.sh || true
+fi
+
 printf "\n${C_GREEN}============================================================${C_OFF}\n"
 printf "${C_GREEN} Termux Setup Complete! ⛏️${C_OFF}\n"
 printf " 1. Configure credentials:  nano .env\n"

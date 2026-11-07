@@ -21,7 +21,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # 0) Preflight Device & Architecture Compatibility Check --------------------
-step "0/4 Checking device and architecture compatibility"
+step "Preflight: Checking device and architecture compatibility"
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
@@ -70,12 +70,12 @@ if [ -f /proc/meminfo ]; then
 fi
 
 # 1) System package updates and Docker installation -------------------------
-step "1/4 Installing Docker & dependencies for $DISTRO_NAME"
+step "1/5 Installing Docker, Multiplexer & System Dependencies for $DISTRO_NAME"
 
 if command -v pacman >/dev/null 2>&1; then
   # Arch Linux / EndeavourOS / Manjaro
   step "Using pacman package manager"
-  pacman -Sy --needed --noconfirm docker docker-compose curl screen
+  pacman -Sy --needed --noconfirm docker docker-compose curl screen python python-pip python-virtualenv ca-certificates procps
 elif command -v apt-get >/dev/null 2>&1; then
   # Debian / Ubuntu
   step "Using apt-get package manager"
@@ -83,22 +83,22 @@ elif command -v apt-get >/dev/null 2>&1; then
   if ! command -v docker >/dev/null 2>&1; then
     curl -fsSL https://get.docker.com -o /tmp/get-docker.sh && sh /tmp/get-docker.sh
   fi
-  apt-get install -y screen ca-certificates || true
+  apt-get install -y screen ca-certificates curl python3 python3-pip python3-venv procps || true
   if ! docker compose version >/dev/null 2>&1; then
     apt-get install -y docker-compose-plugin || apt-get install -y docker-compose
   fi
 elif command -v dnf >/dev/null 2>&1; then
   # Fedora / RHEL / CentOS / Rocky / Alma
   step "Using dnf package manager"
-  dnf install -y docker docker-compose-plugin curl screen || dnf install -y docker docker-compose curl screen
+  dnf install -y docker docker-compose-plugin curl screen python3 python3-pip procps-ng ca-certificates || dnf install -y docker docker-compose curl screen python3 python3-pip procps-ng ca-certificates
 elif command -v zypper >/dev/null 2>&1; then
   # openSUSE
   step "Using zypper package manager"
-  zypper in -y docker docker-compose curl screen
+  zypper in -y docker docker-compose curl screen python3 python3-pip ca-certificates
 elif command -v apk >/dev/null 2>&1; then
   # Alpine Linux
   step "Using apk package manager"
-  apk add docker docker-cli-compose curl gcompat screen
+  apk add docker docker-cli-compose curl gcompat screen python3 py3-pip ca-certificates
 else
   warn "Unknown package manager. Attempting official Docker script"
   if ! command -v docker >/dev/null 2>&1; then
@@ -107,7 +107,7 @@ else
 fi
 
 # 2) Install compatible official OptimAI CLI binary -------------------------
-step "2/4 Installing compatible OptimAI CLI from official website"
+step "2/5 Installing compatible OptimAI CLI miner binary from official website"
 CLI_URL="https://cli-node.optimai.network/optimai_cli_ubuntu"
 
 if command -v optimai-cli >/dev/null 2>&1; then
@@ -115,14 +115,14 @@ if command -v optimai-cli >/dev/null 2>&1; then
 else
   info "Downloading compatible CLI binary from $CLI_URL"
   if curl -fsSL "$CLI_URL" -o /usr/local/bin/optimai-cli && chmod +x /usr/local/bin/optimai-cli; then
-    printf "${C_GREEN}[ok]${C_OFF} Installed optimai-cli to /usr/local/bin/optimai-cli\n"
+    printf "${C_GREEN}[ok]${C_OFF} Installed optimai-cli to /usr/local/bin/optimai-cli (%s)\n" "$(/usr/local/bin/optimai-cli --version 2>/dev/null || echo 'ready')"
   else
     warn "optimai-cli host download skipped (image bundles it)"
   fi
 fi
 
 # 3) Enable and start docker service ----------------------------------------
-step "3/4 Enabling and starting docker service"
+step "3/5 Enabling and starting docker service"
 if command -v systemctl >/dev/null 2>&1; then
   systemctl enable --now docker 2>/dev/null || systemctl start docker 2>/dev/null || true
 elif command -v service >/dev/null 2>&1; then
@@ -131,8 +131,14 @@ elif command -v rc-service >/dev/null 2>&1; then
   rc-service docker start 2>/dev/null || true
 fi
 
+# Wait briefly for docker daemon socket activation
+for i in {1..5}; do
+  [ -S /var/run/docker.sock ] && break
+  sleep 1
+done
+
 # 4) Swap configuration (advisory, safe for small nodes) --------------------
-step "4/4 Checking swap space"
+step "4/5 Checking swap space"
 swap_mb() { awk '/SwapTotal/ {printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || echo 0; }
 if [ "$(swap_mb)" -lt 2048 ] && command -v fallocate >/dev/null 2>&1; then
   if [ -f /swapfile ]; then
@@ -152,40 +158,18 @@ else
   info "Swap status: $(swap_mb) MB (advisory)"
 fi
 
-printf "\n${C_GREEN}VPS / Machine setup completed.${C_OFF} Preflight status:\n"
-problems=0
-
-if command -v docker >/dev/null 2>&1; then
-  printf "  ${C_GREEN}[ok]${C_OFF} docker is installed: %s\n" "$(docker --version 2>/dev/null)"
-else
-  printf "  ${C_RED}[!!]${C_OFF} docker not found in PATH\n"
-  problems=$((problems + 1))
+# 5) Ensure persistent directories and environment configuration ------------
+step "5/5 Initializing storage directories and environment"
+mkdir -p ./data/data ./data/home ~/.optimai
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+  info "Created initial .env from .env.example template"
 fi
 
-if docker compose version >/dev/null 2>&1 || command -v docker-compose >/dev/null 2>&1; then
-  printf "  ${C_GREEN}[ok]${C_OFF} docker compose is available\n"
-else
-  printf "  ${C_YELLOW}[??]${C_OFF} docker compose not detected directly\n"
+# Run comprehensive pre-flight readiness checklist
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/check-readiness.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/check-readiness.sh"
+elif [ -f scripts/check-readiness.sh ]; then
+  bash scripts/check-readiness.sh
 fi
-
-if [ -S /var/run/docker.sock ]; then
-  printf "  ${C_GREEN}[ok]${C_OFF} docker socket is active (/var/run/docker.sock)\n"
-else
-  printf "  ${C_YELLOW}[??]${C_OFF} docker socket not active yet (will mount when daemon starts)\n"
-fi
-
-if command -v optimai-cli >/dev/null 2>&1; then
-  printf "  ${C_GREEN}[ok]${C_OFF} optimai-cli is ready: %s\n" "$(optimai-cli --version 2>/dev/null || echo 'ready')"
-else
-  info "optimai-cli host binary optional (Docker image includes bundled CLI)"
-fi
-
-if [ "$problems" -eq 0 ]; then
-  printf "\n${C_GREEN}All essential preflight checks passed.${C_OFF} Next steps:\n"
-else
-  printf "\n${C_YELLOW}Setup completed with %s warning(s).${C_OFF} Next steps:\n" "$problems"
-fi
-printf "  cd optimai-cli\n"
-printf "  cp .env.example .env && nano .env      ${C_YELLOW}# fill TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS${C_OFF}\n"
-printf "  docker compose up -d --build\n"
-printf "  docker compose logs -f\n"
