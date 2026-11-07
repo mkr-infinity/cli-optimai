@@ -40,11 +40,17 @@ else
   warn "termux-wake-lock not found. Install 'termux-tools' to keep CPU awake with screen off."
 fi
 
-# 3. Install core packages
+# 3. Install core packages with fallbacks
 step "3/5 Installing required Termux packages"
+export DEBIAN_FRONTEND=noninteractive
 if command -v pkg >/dev/null 2>&1; then
-  pkg update -y
-  pkg install -y python git screen curl proot-distro termux-tools
+  pkg update -y -o Dpkg::Options::="--force-confold" || {
+    warn "pkg update returned a mirror warning. If packages fail, run 'termux-change-repo'."
+  }
+  pkg install -y -o Dpkg::Options::="--force-confold" python git screen curl clang libffi openssl make proot proot-distro termux-tools || {
+    warn "Retrying with basic package set..."
+    pkg install -y python git screen curl proot-distro termux-tools
+  }
 elif command -v apt-get >/dev/null 2>&1; then
   apt-get update -y
   apt-get install -y python3 python3-venv git screen curl proot-distro
@@ -53,10 +59,15 @@ fi
 # 4. Set up Python virtual environment
 step "4/5 Setting up Python environment and dependencies"
 if [ ! -d ".venv" ]; then
-  python3 -m venv .venv
+  python3 -m venv .venv || {
+    warn "venv creation fallback..."
+    python3 -m venv --without-pip .venv
+    curl -fsSL https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py
+    .venv/bin/python /tmp/get-pip.py
+  }
 fi
 
-.venv/bin/pip install --upgrade pip
+.venv/bin/pip install --upgrade pip setuptools wheel
 .venv/bin/pip install -r requirements.txt
 
 # 5. CLI Architecture setup & guidance
@@ -74,12 +85,16 @@ case "$ARCH" in
     ;;
   aarch64|arm64)
     info "ARM64 Android device detected."
-    info "The upstream OptimAI CLI distributes x86_64 Linux binaries."
-    info "You can run in two ways on Android:"
-    echo "  1) Control-Plane & Remote Management: Bot runs natively in Termux."
-    echo "  2) Full Mining on Device via PRoot Ubuntu (Box64/QEMU x86_64 emulation):"
-    echo "     proot-distro install ubuntu"
-    echo "     proot-distro login ubuntu"
+    info "Upstream distributes x86_64 binaries. PRoot automated bridge available."
+    if [ -t 0 ]; then
+      printf "\n${C_CYAN}Would you like to install PRoot Ubuntu x86_64 emulation for on-device mining now? [Y/n]: ${C_OFF}"
+      read -r REPLY || REPLY="y"
+      if [[ ! "$REPLY" =~ ^[Nn]$ ]]; then
+        bash setup-termux-proot.sh
+      fi
+    else
+      info "Non-interactive shell. Run 'bash setup-termux-proot.sh' to install on-device PRoot mining bridge."
+    fi
     ;;
   *)
     warn "Unsupported Android CPU architecture: $ARCH"

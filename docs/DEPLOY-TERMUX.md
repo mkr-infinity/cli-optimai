@@ -156,3 +156,70 @@ Once running in Termux, open your bot in Telegram and use:
 * `/watch` — Live streaming log viewer in chat
 * `/stop_node` — Stop background mining workloads
 * `/restart_node` — Restart node & reset crash breaker
+
+---
+
+## 🚨 Troubleshooting & Common Error Fallbacks
+
+### 1. `E: Repository '...' does not have a Release file` (404 Error)
+* **Cause**: You installed Termux from the Google Play Store (which was deprecated in 2020).
+* **Fix**:
+  1. Uninstall the Google Play version of Termux.
+  2. Download and install the official build from [F-Droid Termux](https://f-droid.org/en/packages/com.termux/).
+
+---
+
+### 2. `Unable to connect to mirror` or Package Download Timeouts
+* **Cause**: The default Termux package mirror is experiencing high traffic or regional ISP blocks.
+* **Fix**:
+  Run the mirror selector inside Termux:
+  ```bash
+  termux-change-repo
+  ```
+  1. Select **Main repository** → Press Enter.
+  2. Choose **Mirrors by Grimler** or **Mirrors by BFSU** → Press Enter.
+  3. Re-run `pkg update -y`.
+
+---
+
+### 3. Process Killed When Phone Screen Turns Off
+* **Cause**: Android OS Battery Optimization or Android 12+ "Phantom Process Killer".
+* **Fix**:
+  1. Run the wake lock command:
+     ```bash
+     termux-wake-lock
+     ```
+     *(A persistent notification will appear in your status bar confirming CPU stays active)*.
+  2. Go to **Android Settings** → **Apps** → **Termux** → **Battery** → Select **Unrestricted**.
+  3. On Samsung/Xiaomi/OnePlus: Add Termux to "Never sleeping apps" / disable "MIUI battery saver".
+
+---
+
+### 4. Python Build Errors (`clang: error`, `libffi`)
+* **Cause**: Missing compilation tools for Python wheels on Android.
+* **Fix**:
+  Install build essentials in Termux:
+  ```bash
+  pkg install -y clang libffi openssl make python-pip
+  pip install --upgrade wheel setuptools
+  pip install -r requirements.txt
+  ```
+
+---
+
+### 5. `optimai-cli: command not found` on ARM64 Phone
+* **Cause**: The official OptimAI CLI binary is compiled for x86_64, but your phone is ARM64.
+* **Fix**:
+  Run our automated PRoot x86_64 bridge installer:
+  ```bash
+  bash setup-termux-proot.sh
+  ```
+  This automatically provisions Ubuntu rootfs with QEMU x86_64 emulation and creates a transparent `$PREFIX/bin/optimai-cli` bridge in Termux.
+
+---
+
+### 6. `Cannot start node: no Docker daemon here`
+* **Explanation**: On non-rooted Android, the native Docker daemon cannot start because the Android kernel restricts container namespaces.
+* **How it works**:
+  * **Option A (Phone Supervisor)**: The bot runs 24/7 on your phone, syncing credentials, monitoring rewards, and giving you complete remote control.
+  * **Option B (Full Mining)**: Run `bash setup-termux-proot.sh` to run the official CLI worker inside PRoot.
