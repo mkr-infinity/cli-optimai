@@ -58,6 +58,11 @@ Follow these 5 simple steps to get your node mining on Google Cloud in under 5 m
 2. Note your numeric **Id** (e.g. `123456789`).
 
 ### 🔹 Step 3: Launch Your Google Cloud VM (Compute Engine)
+
+> [!WARNING]
+> **Google Cloud Policy Notice & Mining Risk:**
+> Google Cloud's [Acceptable Use Policy](https://cloud.google.com/terms/aup) restricts computational and crypto mining on **Free Trial ($300 credit) accounts** without prior written approval. Automated fraud detection may suspend trial projects if continuous intensive mining is flagged. For a 100% suspension-free experience, consider standard paid accounts, dedicated crypto-friendly VPS hosts, or running locally on your own PC.
+
 1. Go to [Google Cloud Console](https://console.cloud.google.com/) > **Compute Engine** > **VM instances**.
 2. Click **Create Instance**:
    * **Name**: `optimai-node`
@@ -251,6 +256,14 @@ gcloud compute instances create optimai-node \
 # Connect to your Google Cloud VM
 gcloud compute ssh optimai-node --zone=us-central1-a
 ```
+
+> [!CAUTION]
+> **Google Cloud Mining Risks & Precautions:**
+> 1. **Acceptable Use Policy (AUP)**: Google Cloud prohibits cryptocurrency/token mining on **Free Trial accounts** without written authorization. Accounts violating this policy can be automatically suspended.
+> 2. **Unexpected Charges**: On paid accounts, sustained high CPU and egress traffic can incur costs once credits lapse. Always configure budget alerts in Google Cloud Billing.
+> 3. **Persistent Backups**: Ensure you periodically backup `state.json` (`bash scripts/backup-data.sh`) to avoid losing node state if an instance is stopped.
+> 4. **Dedicated Alternatives**: If you prefer a platform with zero policy restrictions on node mining, consider budget VPS hosts (e.g. Hetzner, Contabo) or your local desktop.
+
 *(See [docs/DEPLOY-GCP.md](docs/DEPLOY-GCP.md) for the complete Google Cloud guide).*
 
 ---

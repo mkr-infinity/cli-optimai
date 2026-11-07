@@ -14,6 +14,28 @@ This guide walks you through deploying your 24/7 OptimAI mining node on **Google
 
 ---
 
+## ⚠️ Critical Policy Warning: Mining on Google Cloud
+
+Before running node mining workloads on Google Cloud, review the following essential risks:
+
+### 1. Google Cloud Acceptable Use Policy (AUP) Restrictions
+Google Cloud’s official [Acceptable Use Policy](https://cloud.google.com/terms/aup) explicitly restricts cryptocurrency and node mining:
+> *"Customer will not, and will not allow third parties under its control to: [...] use the Services to mine cryptocurrency without Google's prior written approval"*
+
+* **Free Trial Accounts ($300 Credits)**: Automated fraud heuristics aggressively monitor free trial accounts. Continuous 100% CPU node mining on free trial projects can trigger immediate project suspension and account termination without notice.
+* **Paid / Upgraded Accounts**: Standard paid accounts have fewer automatic flags, but persistent intensive computing must comply with resource quotas.
+
+### 2. Financial & Inadvertent Billing Risks
+* **Egress & Sustained vCPU Usage**: Once trial credits elapse, continuous compute and network egress will be billed directly to your payment method.
+* **Set Budget Alerts**: Always configure a budget alert (e.g. $10) in the Google Cloud Billing console to avoid unexpected charges.
+
+### 3. Recommended Alternatives for Unrestricted Mining
+If you want to mine 24/7 without risk of provider suspension:
+* **Dedicated VPS Hosts**: Providers such as Hetzner, Contabo, RackNerd, or Vultr permit node and background computing workloads.
+* **Local Machine**: Run natively on your personal desktop or laptop using Docker Desktop (100% free, full control, zero policy risk).
+
+---
+
 ## 🚀 Deployment Walkthrough (Google Cloud Console)
 
 ### Step 1: Create a Google Cloud Project & Enable Compute Engine

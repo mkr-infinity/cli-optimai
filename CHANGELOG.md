@@ -12,7 +12,7 @@
 - OptimAI referral link (`https://node.optimai.network/register?ref=646D12E7`) integrated across Telegram inline buttons and guides.
 - Streamlined 5-step beginner setup guide and visual cheatsheet in `README.md`.
 - Multi-distribution compatibility engine (`bot/compatibility.py` and `scripts/check-compatibility.sh`) detecting Arch Linux, EndeavourOS, Debian, Ubuntu, Fedora, openSUSE, Alpine, macOS, and Windows.
-- Google Cloud Platform (GCP) 24/7 mining focus: added `docs/DEPLOY-GCP.md`, redesigned quickstart for GCP Compute Engine with web SSH, and contrasted full Docker mining capability against serverless container platforms.
+- Google Cloud Platform (GCP) 24/7 mining focus: added `docs/DEPLOY-GCP.md`, redesigned quickstart for GCP Compute Engine with web SSH, contrasted full Docker mining capability against serverless container platforms, and added comprehensive Acceptable Use Policy (AUP) risk warnings regarding Free Trial account suspensions and financial protections.
 - Intelligent package manager detection across `pacman`, `apt`, `dnf`, `zypper`, and `apk` in `setup-vps.sh`.
 - Explicit OS & architecture preflight validation with detailed explanatory failure messages; RAM and storage checks are strictly advisory and never forced.
 - Expanded smoke test coverage to 121 automated checks.
