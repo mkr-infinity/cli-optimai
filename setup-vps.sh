@@ -111,9 +111,38 @@ step "2/5 Installing compatible OptimAI CLI miner binary from official website"
 CLI_URL="https://cli-node.optimai.network/optimai_cli_ubuntu"
 
 info "Downloading and configuring official OptimAI CLI binary from $CLI_URL"
-if curl -fsSL "$CLI_URL" -o /usr/local/bin/optimai-bin && chmod +x /usr/local/bin/optimai-bin; then
+CLI_INSTALLED=false
+if [ -f "./optimai-cli" ]; then
+  chmod +x "./optimai-cli"
+  mv "./optimai-cli" /usr/local/bin/optimai-bin 2>/dev/null || sudo mv "./optimai-cli" /usr/local/bin/optimai-bin 2>/dev/null || true
+  CLI_INSTALLED=true
+elif curl -fL "$CLI_URL" -o optimai-cli 2>/dev/null && chmod +x optimai-cli; then
+  mv optimai-cli /usr/local/bin/optimai-bin 2>/dev/null || sudo mv optimai-cli /usr/local/bin/optimai-bin 2>/dev/null || true
+  CLI_INSTALLED=true
+elif curl -fsSL "$CLI_URL" -o /usr/local/bin/optimai-bin 2>/dev/null && chmod +x /usr/local/bin/optimai-bin; then
+  CLI_INSTALLED=true
+fi
+
+if [ "$CLI_INSTALLED" = true ] && [ -x /usr/local/bin/optimai-bin ]; then
+  chmod +x /usr/local/bin/optimai-bin
   cat <<'EOF' > /usr/local/bin/optimai-cli
 #!/usr/bin/env bash
+# Smart wrapper for official optimai-bin:
+# 1. Bi-directional credential sync with workspace ./data & credentials.json database
+# 2. Flag normalization (-v -> --version)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REAL_TARGET="/usr/local/bin/optimai-bin"
+if [ ! -x "$REAL_TARGET" ]; then
+  REAL_TARGET="$SCRIPT_DIR/optimai-bin"
+fi
+
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+  if [ -f "$sync_cand" ]; then
+    bash "$sync_cand" >/dev/null 2>&1 || true
+    break
+  fi
+done
+
 args=()
 for arg in "$@"; do
   if [ "$arg" = "-v" ]; then
@@ -122,7 +151,18 @@ for arg in "$@"; do
     args+=("$arg")
   fi
 done
-exec /usr/local/bin/optimai-bin "${args[@]}"
+
+"$REAL_TARGET" "${args[@]}"
+RC=$?
+
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+  if [ -f "$sync_cand" ]; then
+    bash "$sync_cand" >/dev/null 2>&1 || true
+    break
+  fi
+done
+
+exit $RC
 EOF
   chmod +x /usr/local/bin/optimai-cli
   # Prime core CLI immediately
@@ -205,6 +245,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/scripts/prompt-login.sh" ]; then
   . "$SCRIPT_DIR/scripts/prompt-login.sh"
   prompt_account_login "optimai-cli"
+fi
+if [ -f "$SCRIPT_DIR/scripts/sync-credentials.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/sync-credentials.sh" >/dev/null 2>&1 || true
 fi
 
 if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then

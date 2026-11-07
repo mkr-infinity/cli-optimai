@@ -2,7 +2,7 @@
 
 Autonomous 24/7 supervisor and Telegram management bot for the official OptimAI CLI Node.
 
-[![CI](https://github.com/mkr-infinity/optimai-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/mkr-infinity/optimai-cli/actions/workflows/ci.yml)
+[![CI](https://github.com/mkr-infinity/cli-optimai/actions/workflows/ci.yml/badge.svg)](https://github.com/mkr-infinity/cli-optimai/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.3.0-orange)](CHANGELOG.md)
@@ -36,9 +36,30 @@ Autonomous 24/7 supervisor and Telegram management bot for the official OptimAI 
 
 ### 1. Clone & Automated Setup
 ```bash
-git clone https://github.com/mkr-infinity/optimai-cli.git && cd optimai-cli
+git clone https://github.com/mkr-infinity/cli-optimai.git && cd cli-optimai
 bash setup.sh
 ```
+
+#### Official OptimAI CLI Manual Installation
+If installing or updating the official upstream binary manually:
+
+* **macOS:**
+  ```bash
+  curl -fL https://cli-node.optimai.network/optimai_cli_darwin_universal2 -o optimai-cli
+  chmod +x optimai-cli
+  sudo mv optimai-cli /usr/local/bin/optimai-cli
+  ```
+* **Linux (Ubuntu / Debian / CentOS / Arch):**
+  ```bash
+  curl -fL https://cli-node.optimai.network/optimai_cli_ubuntu -o optimai-cli
+  chmod +x optimai-cli
+  sudo mv optimai-cli /usr/local/bin/optimai-cli
+  ```
+* **Windows (PowerShell or Command Prompt):**
+  ```powershell
+  curl.exe -fL https://cli-node.optimai.network/optimai_cli_windows.exe -o optimai-cli.exe
+  .\optimai-cli.exe --help
+  ```
 
 > [!NOTE]
 > `bash setup.sh` automatically detects your platform (GitHub Codespaces, Android Termux, Linux VPS, macOS, or Windows), installs required system packages, downloads and primes the official OptimAI CLI binary, and configures `.env`.
@@ -90,15 +111,18 @@ All commands directly interface with the official upstream `optimai-cli`:
 |---|---|---|---|
 | `/start` | Welcome Overview | Admin | Live system diagnostics, node status, and quick buttons |
 | `/login [--legacy] [email pwd]` | `optimai-cli auth login [--legacy]` | Admin | Browser login (default) or legacy email/password sign-in |
-| `/logout` | `optimai-cli auth logout` | Admin | Sign out and purge local stored credentials |
+| `/auth [login\|logout\|me\|status]` | `optimai-cli auth ...` | Admin | Official CLI account subcommands |
 | `/auth_status` | `optimai-cli auth status` | Admin | Check live OptimAI account connection status |
 | `/me` | `optimai-cli auth me` | Admin | View authenticated OptimAI profile and node details |
-| `/start_node` | `optimai-cli node start` | Admin | Start mining process and Docker AI miner containers |
-| `/stop_node` | `optimai-cli node stop` | Admin | Stop node and terminate background mining containers |
-| `/restart_node` | Stop + Start | Admin | Gracefully restart node and reset circuit breaker |
-| `/status` | `optimai-cli node status` | Admin | Live status: uptime, Docker health, crash counters |
+| `/sync` | Bi-directional sync | Admin | Force credential & database sync between bot and workspace terminal |
+| `/logout` | `optimai-cli auth logout` | Admin | Sign out and purge local stored credentials |
+| `/start_node` (or `/startnode`) | `optimai-cli node start` | Admin | Start mining process and Docker AI miner containers |
+| `/stop_node` (or `/stop`, `/stopnode`) | `optimai-cli node stop` | Admin | Stop node and terminate background mining containers |
+| `/restart_node` (or `/restart`) | Stop + Start | Admin | Gracefully restart node and reset circuit breaker |
+| `/node [start\|stop\|restart\|status]` | `optimai-cli node ...` | Admin | Official CLI node subcommands |
+| `/status` (or `/nodestatus`) | `optimai-cli node status` | Admin | Live status: uptime, Docker health, crash counters |
 | `/screen` | Detached session | Admin | View background session, worker PID, and live snapshot |
-| `/rewards` | `optimai-cli rewards balance` | Admin | Display current OptimAI earned points and rewards |
+| `/rewards` (or `/reward`, `/balance`) | `optimai-cli rewards balance` | Admin | Display current OptimAI earned points and rewards |
 | `/rewardadded [on\|off]` | Reward Supervisor | Admin | Toggle real-time Telegram alerts on mining reward payout |
 | `/logs` (or `/log`) | `tail -n 40 node.log` | Admin | View last 40 lines of node logs in Telegram |
 | `/watch [sec]` | `tail -f node.log` | Admin | Live streaming log tail in Telegram (10–600s) |

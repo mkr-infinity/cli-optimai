@@ -51,6 +51,12 @@ prompt_account_login() {
   if [ "$METHOD_CHOICE" = "1" ]; then
     printf "\n\033[1;32m==>\033[0m Launching Browser Login (optimai-cli auth login)...\n"
     "$CLI_BIN" auth login --no-open --paste || true
+    for sync_cand in "$SCRIPT_DIR/sync-credentials.sh" "$SCRIPT_DIR/../scripts/sync-credentials.sh" "scripts/sync-credentials.sh"; do
+      if [ -f "$sync_cand" ]; then
+        bash "$sync_cand" >/dev/null 2>&1 || true
+        break
+      fi
+    done
     printf "\n\033[1;32m[✓]\033[0m Login flow complete. Check status anytime with: %s auth status\n\n" "$CLI_BIN"
 
   elif [ "$METHOD_CHOICE" = "2" ]; then
@@ -66,6 +72,12 @@ prompt_account_login() {
     if [ -n "$EMAIL_INPUT" ] && [ -n "$PWD_INPUT" ]; then
       printf "  Authenticating with OptimAI Network (legacy login)...\n"
       printf "%s\n%s\n" "$EMAIL_INPUT" "$PWD_INPUT" | "$CLI_BIN" auth login --legacy 2>/dev/null || true
+      for sync_cand in "$SCRIPT_DIR/sync-credentials.sh" "$SCRIPT_DIR/../scripts/sync-credentials.sh" "scripts/sync-credentials.sh"; do
+        if [ -f "$sync_cand" ]; then
+          bash "$sync_cand" >/dev/null 2>&1 || true
+          break
+        fi
+      done
       printf "\n\033[1;32m[✓]\033[0m Legacy login submitted. Verification: %s auth status\n\n" "$CLI_BIN"
     else
       printf "\n\033[1;33m[!] Email or password empty. Login skipped.\033[0m\n\n"

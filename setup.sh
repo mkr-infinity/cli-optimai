@@ -57,28 +57,23 @@ elif [ "$(uname -s)" = "Darwin" ]; then
   # Install official Darwin binary
   mkdir -p "$HOME/.local/bin" ./data/data ./data/home ~/.optimai
   CLI_URL="https://cli-node.optimai.network/optimai_cli_darwin_universal2"
-  printf "  Downloading official macOS OptimAI CLI...\n"
-  curl -fsSL "$CLI_URL" -o "$HOME/.local/bin/optimai-bin"
-  chmod +x "$HOME/.local/bin/optimai-bin"
+  printf "  Downloading official macOS OptimAI CLI from %s...\n" "$CLI_URL"
 
-  cat <<'EOF' > "$HOME/.local/bin/optimai-cli"
-#!/usr/bin/env bash
-REAL_TARGET="$(dirname "$0")/optimai-bin"
-args=()
-for arg in "$@"; do
-  if [ "$arg" = "-v" ]; then
-    args+=("--version")
+  if [ -f "./optimai-cli" ]; then
+    chmod +x "./optimai-cli"
+    sudo mv "./optimai-cli" /usr/local/bin/optimai-cli 2>/dev/null || mv "./optimai-cli" "$HOME/.local/bin/optimai-cli"
   else
-    args+=("$arg")
+    curl -fL "$CLI_URL" -o optimai-cli
+    chmod +x optimai-cli
+    sudo mv optimai-cli /usr/local/bin/optimai-cli 2>/dev/null || mv optimai-cli "$HOME/.local/bin/optimai-cli"
   fi
-done
-exec "$REAL_TARGET" "${args[@]}"
-EOF
-  chmod +x "$HOME/.local/bin/optimai-cli"
-  export PATH="$HOME/.local/bin:$PATH"
+
+  if [ -d "$HOME/.local/bin" ]; then
+    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+  fi
 
   # Prime CLI
-  "$HOME/.local/bin/optimai-cli" --help >/dev/null 2>&1 || true
+  optimai-cli --help >/dev/null 2>&1 || true
 
   # Python virtual environment
   if [ ! -d ".venv" ]; then

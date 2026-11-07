@@ -60,31 +60,44 @@ else
   USE_LOCAL=true
 fi
 
-# Download official bootstrap binary
-if [ -n "$SUDO" ] && [ "$USE_LOCAL" = false ]; then
-  $SUDO curl -fsSL "$CLI_URL" -o "$REAL_BIN"
-  $SUDO chmod +x "$REAL_BIN"
-  
-  # Install smart wrapper that normalizes -v to --version
-  $SUDO tee "$WRAPPER_BIN" > /dev/null <<'EOF'
-#!/usr/bin/env bash
-args=()
-for arg in "$@"; do
-  if [ "$arg" = "-v" ]; then
-    args+=("--version")
+# If optimai-cli already exists in current folder, make executable and install to PATH
+if [ -f "./optimai-cli" ]; then
+  chmod +x "./optimai-cli"
+  if [ -n "$SUDO" ] && [ "$USE_LOCAL" = false ]; then
+    $SUDO mv "./optimai-cli" "$REAL_BIN"
   else
-    args+=("$arg")
+    mv "./optimai-cli" "$REAL_BIN"
   fi
-done
-exec /usr/local/bin/optimai-bin "${args[@]}"
-EOF
-  $SUDO chmod +x "$WRAPPER_BIN"
 else
-  curl -fsSL "$CLI_URL" -o "$REAL_BIN"
-  chmod +x "$REAL_BIN"
-  cat <<'EOF' > "$WRAPPER_BIN"
-#!/usr/bin/env bash
-REAL_TARGET="$(dirname "$0")/optimai-bin"
+  # Download official bootstrap binary
+  curl -fL "$CLI_URL" -o optimai-cli
+  chmod +x optimai-cli
+  if [ -n "$SUDO" ] && [ "$USE_LOCAL" = false ]; then
+    $SUDO mv optimai-cli "$REAL_BIN"
+  else
+    mv optimai-cli "$REAL_BIN"
+  fi
+fi
+
+# Install smart wrapper that syncs credentials bi-directionally and normalizes -v to --version
+WRAPPER_SCRIPT='#!/usr/bin/env bash
+# Smart wrapper for official optimai-bin:
+# 1. Bi-directional credential sync with workspace ./data & credentials.json database
+# 2. Flag normalization (-v -> --version)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REAL_TARGET="'"$REAL_BIN"'"
+if [ ! -x "$REAL_TARGET" ]; then
+  REAL_TARGET="$SCRIPT_DIR/optimai-bin"
+fi
+
+# Pre-execution: synchronize credentials from ./data or credentials.json if available
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+  if [ -f "$sync_cand" ]; then
+    bash "$sync_cand" >/dev/null 2>&1 || true
+    break
+  fi
+done
+
 args=()
 for arg in "$@"; do
   if [ "$arg" = "-v" ]; then
@@ -93,9 +106,29 @@ for arg in "$@"; do
     args+=("$arg")
   fi
 done
-exec "$REAL_TARGET" "${args[@]}"
-EOF
+
+"$REAL_TARGET" "${args[@]}"
+RC=$?
+
+# Post-execution: sync updated credentials back to ./data and credentials.json database
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+  if [ -f "$sync_cand" ]; then
+    bash "$sync_cand" >/dev/null 2>&1 || true
+    break
+  fi
+done
+
+exit $RC
+'
+
+if [ -n "$SUDO" ] && [ "$USE_LOCAL" = false ]; then
+  echo "$WRAPPER_SCRIPT" | $SUDO tee "$WRAPPER_BIN" > /dev/null
+  $SUDO chmod +x "$WRAPPER_BIN"
+  $SUDO chmod +x "$REAL_BIN"
+else
+  echo "$WRAPPER_SCRIPT" > "$WRAPPER_BIN"
   chmod +x "$WRAPPER_BIN"
+  chmod +x "$REAL_BIN"
 fi
 
 # Ensure in PATH
@@ -129,6 +162,10 @@ tick "Python Virtual Environment" "Dependencies installed in .venv"
 
 # 5. Storage Directories & Environment Configuration
 mkdir -p ./data/data ./data/home ~/.optimai
+chmod -R a+rwX ./data 2>/dev/null || true
+if [ -f scripts/sync-credentials.sh ]; then
+  bash scripts/sync-credentials.sh >/dev/null 2>&1 || true
+fi
 if [ ! -f .env ] && [ -f .env.example ]; then
   cp .env.example .env
   tick "Configuration File" "Created .env from .env.example template"
@@ -147,6 +184,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/scripts/prompt-login.sh" ]; then
   . "$SCRIPT_DIR/scripts/prompt-login.sh"
   prompt_account_login "optimai-cli"
+fi
+if [ -f "$SCRIPT_DIR/scripts/sync-credentials.sh" ]; then
+  bash "$SCRIPT_DIR/scripts/sync-credentials.sh" >/dev/null 2>&1 || true
 fi
 
 if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then

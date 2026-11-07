@@ -34,8 +34,20 @@ fi
 # Ensure NODE_AUTO_START=true so mining automatically starts with bot
 export NODE_AUTO_START=true
 
-# Ensure storage directories
+# Ensure storage directories and permissions
 mkdir -p ./data/data ./data/home ~/.optimai 2>/dev/null || true
+chmod -R a+rwX ./data 2>/dev/null || true
+
+# If optimai-cli is present locally, make executable and install to PATH
+if [ -f "./optimai-cli" ] && [ ! -x "/usr/local/bin/optimai-cli" ]; then
+  chmod +x "./optimai-cli"
+  sudo mv "./optimai-cli" /usr/local/bin/optimai-cli 2>/dev/null || mv "./optimai-cli" "$HOME/.local/bin/optimai-cli" 2>/dev/null || true
+fi
+
+# Bi-directional credential & database sync before starting
+if [ -f scripts/sync-credentials.sh ]; then
+  bash scripts/sync-credentials.sh >/dev/null 2>&1 || true
+fi
 
 # 2. Check execution mode (Docker vs Native/Termux)
 IS_TERMUX=false
