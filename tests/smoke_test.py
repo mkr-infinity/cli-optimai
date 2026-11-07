@@ -565,12 +565,20 @@ with open(os.path.join(ROOT, "bot", "main.py"), encoding="utf-8") as fh:
 
 for cmd in (
     "help", "status", "start_node", "stop_node", "restart_node", "rewards",
-    "logs", "watch", "login", "auth_status", "me", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy",
+    "logs", "log", "watch", "login", "auth_status", "me", "logout", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy",
 ):
     check(
         f"main: /{cmd} handler registered",
         re.search(rf'CommandHandler\("{cmd}"', src) is not None,
     )
+check(
+    "main: ApplicationBuilder enables concurrent_updates",
+    "concurrent_updates(True)" in src,
+)
+check(
+    "main: terminal log streamer function exists",
+    "tail_node_log_terminal" in src,
+)
 check(
     "main: unauthorized handler registered LAST with ~admin filter",
     src.rfind("MessageHandler(~admin_filter, unauthorized_handler)") > src.rfind("MessageHandler(filters.TEXT & ~filters.COMMAND & admin_filter, on_admin_text)")
@@ -595,6 +603,14 @@ opt_src = open(os.path.join(ROOT, "bot", "optimai.py"), encoding="utf-8").read()
 check(
     "optimai: docker_server_version uses run_bin, never 'optimai-cli docker'",
     'run_bin(\n            "docker"' in opt_src.replace("self.", "") or '"docker", "version"' in opt_src,
+)
+check(
+    "optimai: auth_me and auth_logout helpers exist",
+    "def auth_me" in opt_src and "def auth_logout" in opt_src,
+)
+check(
+    "optimai: docker_server_version is cached for latency reduction",
+    "_cached_docker" in opt_src,
 )
 check(
     "optimai: read_new_chunk shrink check is `size < start_offset`",

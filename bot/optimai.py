@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 
 NOT_AUTHENTICATED_MARK = "Not authenticated"
 UPDATE_WARNING_MARK = "Important OptimAI CLI update available"
@@ -41,6 +42,7 @@ class OptimaiCLI:
     def __init__(self, binary: str = "optimai-cli", home: str = "/data/home") -> None:
         self.binary = binary
         self.home = home
+        self._cached_docker: tuple[float, bool, str] | None = None
 
     def _cli_env(self) -> dict[str, str]:
         env = os.environ.copy()
@@ -106,7 +108,15 @@ class OptimaiCLI:
     # ------------------------------------------------------------------
 
     async def auth_status(self) -> tuple[int | None, str, str]:
-        return await self.run("auth", "status")
+        return await self.run("auth", "status", timeout=15)
+
+    async def auth_me(self) -> tuple[int | None, str, str]:
+        """Ask official OptimAI CLI for authenticated user profile info."""
+        return await self.run("auth", "me", timeout=15)
+
+    async def auth_logout(self) -> tuple[int | None, str, str]:
+        """Sign out from official OptimAI CLI."""
+        return await self.run("auth", "logout", timeout=15)
 
     async def is_authenticated(self) -> bool:
         """False on non-zero exit OR on the logged-out output. The real CLI
@@ -121,26 +131,34 @@ class OptimaiCLI:
 
     async def node_status(self) -> tuple[bool, str]:
         """(ok, text) — text is passed through raw for Telegram display."""
-        rc, out, err = await self.run("node", "status", timeout=60)
+        rc, out, err = await self.run("node", "status", timeout=15)
         return rc == 0, (out + err).strip()
 
     async def rewards_balance(self) -> tuple[bool, str]:
         """(ok, text) — text is passed through raw for Telegram display."""
-        rc, out, err = await self.run("rewards", "balance", timeout=60)
+        rc, out, err = await self.run("rewards", "balance", timeout=15)
         return rc == 0, (out + err).strip()
 
-    async def docker_server_version(self) -> tuple[bool, str]:
+    async def docker_server_version(self, force: bool = False) -> tuple[bool, str]:
         """Ask the HOST docker daemon (through the mounted socket at
         /var/run/docker.sock) for its server version using the docker CLI
         client directly — NEVER `optimai-cli docker` (not a real subcommand).
+        Cached for 15s to keep bot command latency fast.
         Returns (ok=False, "") on Railway where the daemon does not exist."""
+        now = time.monotonic()
+        if not force and self._cached_docker is not None:
+            cached_at, cached_ok, cached_ver = self._cached_docker
+            if now - cached_at < 15.0:
+                return cached_ok, cached_ver
+
         rc, out, err = await self.run_bin(
-            "docker", "version", "--format", "{{.Server.Version}}", timeout=15
+            "docker", "version", "--format", "{{.Server.Version}}", timeout=10
         )
         version = (out or "").strip()
-        if rc == 0 and version:
-            return True, version
-        return False, ""
+        ok = rc == 0 and bool(version)
+        res_ver = version if ok else ""
+        self._cached_docker = (now, ok, res_ver)
+        return ok, res_ver
 
 
 # ----------------------------------------------------------------------

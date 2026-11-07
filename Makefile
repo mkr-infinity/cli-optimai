@@ -4,7 +4,7 @@
 SHELL := /bin/bash
 PY := .venv/bin/python
 
-.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs compat
+.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs log compat
 
 help:
 	@echo "OptimAI CLI Developer Commands:"
@@ -69,4 +69,6 @@ env-check:
 	@test -f .env && echo "[OK] .env exists" || echo "[WARN] .env missing"
 
 logs:
-	docker compose logs --tail=100 -f
+	@if [ -f data/node.log ]; then $(PY) -m bot.main logs; else docker compose logs --tail=100 -f; fi
+
+log: logs

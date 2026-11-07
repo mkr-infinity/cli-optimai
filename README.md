@@ -6,6 +6,15 @@
 ![Version](https://img.shields.io/badge/version-1.2.0-orange)
 [![Telegram](https://img.shields.io/badge/contact-%40mkr__infinity-blue)](https://t.me/mkr_infinity)
 
+> [!IMPORTANT]
+> **OFFICIAL OPTIMAI CLI REFERENCE & NOTICE:**  
+> This repository is **NOT** the official documentation or code repository for the OptimAI CLI itself.  
+> For official OptimAI Node CLI documentation, releases, hardware requirements, and native CLI usage, visit:  
+> 👉 **[OptimAI Network CLI Node Official Repository](https://github.com/OptimaiNetwork/OptimAI-CLI-Node)** | **[Official Core Node Docs](https://docs.optimai.network/docs/optimai-node/core-node)**  
+>  
+> **What this repository is:**  
+> This project is a **24/7 autonomous production supervisor and Telegram management bot** built to wrap the official `optimai-cli`. It automatically restarts crashed nodes with exponential backoff, manages Docker AI mining containers (`crawl4ai`), syncs local credentials, and provides full remote control from your phone.
+
 > 🚀 **Your 24/7 OptimAI Network node on Google Cloud, controlled entirely from Telegram.**
 > Start, stop, monitor rewards, view live logs, and authenticate directly from your phone. Run on Google Cloud Platform (GCP) Compute Engine with full Docker engine access for continuous 24/7 mining.
 
@@ -152,31 +161,51 @@ You can run the bot on your local personal computer just as easily as on a remot
 
 ---
 
-## 5. Bot Commands
+## 5. Bot Commands & Official CLI Mapping
 
-| Command | Allowed Users | Description |
-|---|---|---|
-| `/help` | Admin | Show this list of commands |
-| `/status` | Admin | Live status: running state, uptime, auth, crashes, circuit breaker |
-| `/start_node` | Admin | Start the node process (persists across reboots) |
-| `/stop_node` | Admin | Stop the node process (stays stopped until `/start_node`) |
-| `/restart_node` | Admin | Restart node & reset the circuit breaker |
-| `/rewards` | Admin | Display current OptimAI points & rewards balance |
-| `/logs` | Admin | View the last 40 lines of `node.log` |
-| `/watch [sec]` | Admin | Live streaming log tail (default 120s, range 10–600s) |
-| `/login [email pass]` | Admin | Browser OAuth or direct email/password sign-in |
-| `/login_legacy <email> <p>`| Admin | Direct email and password login |
-| `/auth_status` | Admin | Check if node is authenticated |
-| `/update_cli` | Admin | Check for and install upstream optimai-cli updates |
-| `/me` | Admin | Display your Telegram user info & admin privileges |
-| `/cancel` | Admin | Cancel an active `/login` session |
-| `/version` | Admin | Show bot and CLI release versions |
-| `/ping` | Admin | Check bot responsiveness & latency |
-| `/uptime` | Admin | View bot and node supervisor uptime |
-| `/disk` | Admin | View VPS volume storage usage |
-| `/system` | Admin | System diagnostics (OS, Python version, CPU, RAM) |
-| `/healthcheck` | Admin | Test internal subsystems (supervisor, store, config) |
-| `/id` | **Everyone** | Show numeric Telegram ID (budgeted for strangers) |
+Every command sent to the bot targets the official upstream `optimai-cli` directly — no separate account or custom credentials are required.
+
+| Telegram Command | Official CLI Command | Allowed Users | Description |
+|---|---|---|---|
+| `/login [email pwd]` | `optimai-cli auth login` | Admin | Sign in via browser OAuth URL or direct email/password |
+| `/login_legacy` | `optimai-cli auth login --legacy` | Admin | Direct interactive email and password login |
+| `/logout` | `optimai-cli auth logout` | Admin | Sign out from OptimAI and clear stored credentials |
+| `/auth_status` (or `/auth`) | `optimai-cli auth status` | Admin | Check live OptimAI account login status |
+| `/me` | `optimai-cli auth me` | Admin | View authenticated OptimAI profile & Telegram details |
+| `/start_node` (or `/start`)| `optimai-cli node start` | Admin | Start the node process and Docker AI miner containers |
+| `/stop_node` (or `/stop`) | `(Graceful SIGINT / Ctrl+C)` | Admin | Stop the node process gracefully |
+| `/restart_node` | Stop + Start | Admin | Restart node & reset circuit breaker |
+| `/status` | `optimai-cli node status` | Admin | Live status: node uptime, Docker health, crash count |
+| `/rewards` | `optimai-cli rewards balance` | Admin | Display current OptimAI points & rewards balance |
+| `/logs` (or `/log`) | `tail node.log` | Admin | View the last 40 lines of node logs in Telegram |
+| `/watch [sec]` | `tail -f node.log` | Admin | Live streaming log tail in Telegram (10–600s) |
+| `/update_cli` (or `/update`)| `optimai-cli update` | Admin | Check for and install upstream CLI updates |
+| `/cancel` | Cancel pexpect child | Admin | Cancel an active `/login` session |
+| `/version` | `optimai-cli --version` | Admin | Show bot and CLI release versions |
+| `/ping` | Control-plane check | Admin | Check bot responsiveness & latency (under 50ms) |
+| `/uptime` | Supervisor metric | Admin | View bot and node supervisor uptime |
+| `/disk` | `shutil.disk_usage` | Admin | View VPS volume storage usage |
+| `/system` | Platform diagnostics | Admin | Diagnostics (OS, distro, CPU architecture, RAM) |
+| `/healthcheck` | Subsystem check | Admin | Test internal subsystems (supervisor, data, binary) |
+| `/help` | — | Admin | Show full command reference |
+| `/id` | — | **Everyone** | Show numeric Telegram ID (budgeted for strangers) |
+
+### 🖥️ Viewing Logs in Terminal
+You can view and stream the live OptimAI node logs directly inside your terminal at any time:
+```bash
+# Option 1: Via Makefile
+make logs
+# or
+make log
+
+# Option 2: Via Python CLI
+python -m bot.main logs
+# or
+python -m bot.main /log
+
+# Option 3: Via helper script
+bash scripts/logs.sh
+```
 
 ---
 
