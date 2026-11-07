@@ -36,6 +36,7 @@ os.environ["TELEGRAM_BOT_TOKEN"] = "123456789:TESTTOKEN"
 os.environ["TELEGRAM_ALLOWED_IDS"] = "111111111"
 os.environ["OPTIMAI_BIN"] = STUB
 os.environ["OPTIMAI_HOME"] = os.path.join(TMP, "home")
+os.environ["OPTIMAI_STUB_AUTH_FILE"] = os.path.join(os.environ["OPTIMAI_HOME"], ".stub_optimai_auth")
 os.environ["DATA_DIR"] = os.path.join(TMP, "data")
 os.environ["OPTIMAI_STUB_HEARTBEAT"] = "0.2"
 for _d in (os.environ["OPTIMAI_HOME"], os.environ["DATA_DIR"]):
@@ -300,10 +301,12 @@ check("windows: setup-windows.ps1 and start.bat exist", os.path.isfile(os.path.j
 check("prompt: scripts/prompt-env.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-env.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-env.sh"), os.X_OK))
 check("prompt: scripts/prompt-login.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-login.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-login.sh"), os.X_OK))
 
-# Test login prompt skip behavior on empty input
+# Test login prompt skip behavior on empty input (isolated stub auth flag)
+prompt_auth_file = os.path.join(TMP, "prompt_stub_auth")
 p_login_skip = subprocess.run(
     ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-login.sh")} && printf "\\n" | prompt_account_login "{STUB}"'],
     cwd=ROOT,
+    env=dict(os.environ, OPTIMAI_STUB_AUTH_FILE=prompt_auth_file),
     capture_output=True,
     text=True,
 )
@@ -316,6 +319,7 @@ check(
 p_login_legacy = subprocess.run(
     ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-login.sh")} && printf "2\\nuser@example.com\\ngoodpass\\n" | prompt_account_login "{STUB}"'],
     cwd=ROOT,
+    env=dict(os.environ, OPTIMAI_STUB_AUTH_FILE=prompt_auth_file),
     capture_output=True,
     text=True,
 )

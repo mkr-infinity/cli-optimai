@@ -22,7 +22,7 @@
 
 set -u
 
-AUTH_FLAG="${OPTIMAI_STUB_AUTH_FILE:-${HOME:-/tmp}/.stub_optimai_auth}"
+AUTH_FLAG="${OPTIMAI_STUB_AUTH_FILE:-${OPTIMAI_HOME:-${HOME:-/tmp}}/.stub_optimai_auth}"
 HEARTBEAT="${OPTIMAI_STUB_HEARTBEAT:-2}"
 HEARTBEAT_LOG="${OPTIMAI_STUB_HEARTBEAT_LOG:-${HOME:-/tmp}/.stub_node_heartbeat}"
 
