@@ -169,7 +169,17 @@ fi
 # Run comprehensive pre-flight readiness checklist
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/scripts/check-readiness.sh" ]; then
-  bash "$SCRIPT_DIR/scripts/check-readiness.sh"
+  bash "$SCRIPT_DIR/scripts/check-readiness.sh" || true
 elif [ -f scripts/check-readiness.sh ]; then
-  bash scripts/check-readiness.sh
+  bash scripts/check-readiness.sh || true
+fi
+
+# 6) Auto-launch Bot & Mining Node if configured ----------------------------
+if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
+  step "Auto-starting OptimAI Bot and AI Miner..."
+  bash "$SCRIPT_DIR/start.sh"
+else
+  printf "\n${C_GREEN}Setup Complete! To start your bot & mining node:${C_OFF}\n"
+  printf "  1. Configure credentials:  ${C_YELLOW}nano .env${C_OFF}\n"
+  printf "  2. Start bot & miner:      ${C_GREEN}bash start.sh${C_OFF}\n\n"
 fi

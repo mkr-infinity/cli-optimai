@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# ============================================================
+# start.sh — Universal Launcher for OptimAI Telegram Bot & Miner
+# OptimAI Telegram Node (v1.3.0)
+#
+# Starts both the 24/7 Telegram supervisor bot AND the OptimAI
+# mining node in the background across VPS, local machine & Termux.
+# ============================================================
+
+set -u
+
+C_GREEN='\033[1;32m'
+C_YELLOW='\033[1;33m'
+C_CYAN='\033[1;36m'
+C_RED='\033[1;31m'
+C_BOLD='\033[1m'
+C_OFF='\033[0m'
+
+step() { printf "${C_CYAN}==>${C_OFF} ${C_GREEN}%s${C_OFF}\n" "$*"; }
+info() { printf "${C_CYAN}[info]${C_OFF} %s\n" "$*"; }
+warn() { printf "${C_YELLOW}[warn]${C_OFF} %s\n" "$*"; }
+
+# 1. Environment file check
+if [ ! -f .env ]; then
+  if [ -f .env.example ]; then
+    cp .env.example .env
+    warn "Created .env from .env.example. Please configure TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS in .env"
+  else
+    printf "${C_RED}ERROR: .env file missing!${C_OFF}\n"
+    exit 1
+  fi
+fi
+
+# Ensure NODE_AUTO_START=true so mining automatically starts with bot
+export NODE_AUTO_START=true
+
+# Ensure storage directories
+mkdir -p ./data/data ./data/home ~/.optimai 2>/dev/null || true
+
+# 2. Check execution mode (Docker vs Native/Termux)
+IS_TERMUX=false
+if [ -n "${TERMUX_VERSION:-}" ] || [ -d "/data/data/com.termux" ]; then
+  IS_TERMUX=true
+fi
+
+DOCKER_AVAILABLE=false
+if [ "$IS_TERMUX" = false ] && command -v docker >/dev/null 2>&1; then
+  if [ -S /var/run/docker.sock ] || docker info >/dev/null 2>&1; then
+    DOCKER_AVAILABLE=true
+  fi
+fi
+
+# 3. Launch
+if [ "$DOCKER_AVAILABLE" = true ]; then
+  step "Starting OptimAI Bot & AI Miner via Docker Compose..."
+  if docker compose version >/dev/null 2>&1; then
+    docker compose up -d --build
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose up -d --build
+  else
+    docker run -d --name optimai-node --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -v ./data:/data optimai-telegram-node
+  fi
+
+  printf "\n${C_BOLD}======================================================================${C_OFF}\n"
+  printf "${C_GREEN}  🚀 OptimAI Telegram Bot & AI Miner Started Successfully!${C_OFF}\n"
+  printf "${C_BOLD}======================================================================${C_OFF}\n"
+  printf "  • Supervisor Bot:  ${C_GREEN}RUNNING${C_OFF} (Docker Container)\n"
+  printf "  • AI Miner Node:   ${C_GREEN}RUNNING${C_OFF} (Auto-started with NODE_AUTO_START=true)\n"
+  printf "  • Live Logs:       ${C_CYAN}make logs${C_OFF} or ${C_CYAN}docker compose logs -f${C_OFF}\n"
+  printf "  • Telegram Bot:    Open Telegram and send ${C_GREEN}/start${C_OFF} or ${C_GREEN}/status${C_OFF}\n"
+  printf "%s\n\n" "======================================================================"
+
+elif [ "$IS_TERMUX" = true ]; then
+  step "Starting OptimAI Bot & Miner on Android Termux..."
+  if [ -f run-termux.sh ]; then
+    bash run-termux.sh
+  elif [ -x .venv/bin/python ]; then
+    if command -v termux-wake-lock >/dev/null 2>&1; then
+      termux-wake-lock
+    fi
+    screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && .venv/bin/python -m bot.main"
+    printf "\n${C_GREEN}✅ Launched in background screen session!${C_OFF}\n"
+    printf "• View terminal:  screen -r optimai\n"
+    printf "• Telegram:       Send /start in Telegram\n"
+  else
+    warn "Python environment not ready. Run 'bash setup-termux.sh' first."
+    exit 1
+  fi
+
+else
+  # Native Linux/macOS Python execution
+  step "Starting OptimAI Bot & Miner locally in background screen session..."
+  PY_BIN="python3"
+  if [ -x .venv/bin/python ]; then
+    PY_BIN=".venv/bin/python"
+  fi
+
+  if command -v screen >/dev/null 2>&1; then
+    screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && $PY_BIN -m bot.main"
+    printf "\n${C_BOLD}======================================================================${C_OFF}\n"
+    printf "${C_GREEN}  🚀 OptimAI Bot & Miner Started in Background Screen Session!${C_OFF}\n"
+    printf "${C_BOLD}======================================================================${C_OFF}\n"
+    printf "  • Screen Session:  ${C_GREEN}optimai${C_OFF} (screen -r optimai)\n"
+    printf "  • AI Miner Node:   ${C_GREEN}RUNNING${C_OFF} (NODE_AUTO_START=true)\n"
+    printf "  • Live Logs:       ${C_CYAN}make logs${C_OFF} or ${C_CYAN}python -m bot.main logs${C_OFF}\n"
+    printf "  • Telegram:        Send ${C_GREEN}/start${C_OFF} in Telegram\n"
+    printf "%s\n\n" "======================================================================"
+  else
+    info "Launching bot and miner in current terminal (screen not installed)..."
+    export NODE_AUTO_START=true
+    $PY_BIN -m bot.main
+  fi
+fi

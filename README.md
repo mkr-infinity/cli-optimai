@@ -367,60 +367,27 @@ gcloud compute ssh optimai-node --zone=us-central1-a
 
 ## 13. Documentation Index & Guides Directory
 
-An extensive library of specialized guides and technical runbooks is available in the [`docs/`](docs/) directory (see **[docs/README.md](docs/README.md)** for the full master documentation roadmap).
+A focused set of production guides and technical runbooks is maintained in the [`docs/`](docs/) directory (see **[docs/README.md](docs/README.md)** for the complete guide directory).
 
 ### 🚀 Deployment & Platform Runbooks
-* **[DEPLOY-GCP.md](docs/DEPLOY-GCP.md)** — *Read when deploying on Google Cloud*. Step-by-step Compute Engine VM setup, web SSH, and essential warnings on Free Trial account mining restrictions.
-* **[DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md)** — *Read when mining on an Android phone or tablet*. F-Droid setup, wake lock background persistence, and ARM64 PRoot Ubuntu x86_64 emulation.
-* **[DEPLOY-VPS.md](docs/DEPLOY-VPS.md)** — *Read when deploying on bare-metal or cloud VPS hosts* (DigitalOcean, Hetzner, Linode, AWS EC2, OVH). Automated multi-distro setup via `setup-vps.sh`.
+* **[DEPLOY-VPS.md](docs/DEPLOY-VPS.md)** — *Primary deployment guide*. Automated multi-distro setup on Ubuntu, Debian, Arch, Fedora, openSUSE, and Alpine via `setup-vps.sh`.
+* **[DEPLOY-GCP.md](docs/DEPLOY-GCP.md)** — *Read when deploying on Google Cloud*. Step-by-step Compute Engine VM setup, browser SSH, and essential warnings on Free Trial account mining restrictions.
+* **[DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md)** — *Read when mining on an Android phone or tablet*. F-Droid setup, wake lock background persistence, and on-device ARM64 PRoot Ubuntu x86_64 emulation.
 * **[DEPLOY-RAILWAY.md](docs/DEPLOY-RAILWAY.md)** — *Read when running on Railway*. Explains Railway `$PORT` healthchecks and control-plane mode.
 
-### 🛠️ Daily Operations, Runbooks & Troubleshooting
+### 🛠️ Daily Operations & Troubleshooting
 * **[RUNBOOK.md](docs/RUNBOOK.md)** — *Read when the node crashes or throws errors*. Incident response procedures, crash diagnostics, circuit breaker resets, and log inspection.
 * **[DAILY-OPS.md](docs/DAILY-OPS.md)** — *Read for daily routine checks*. Quick 2-minute operator checklist to verify node health, rewards balance, and disk space.
-* **[MAINTENANCE.md](docs/MAINTENANCE.md)** — *Read for periodic maintenance*. Routine Docker volume pruning, log rotation tuning, and safe reboot procedures.
-* **[DISASTER-RECOVERY.md](docs/DISASTER-RECOVERY.md)** — *Read after server panics, power loss, or reboot crashes*. Automated database restoration and zero-data-loss recovery.
-* **[ERROR-CATALOG.md](docs/ERROR-CATALOG.md)** — *Read to decode error messages*. Full catalog mapping CLI exit codes (0, 1, 2, 64, 126, 127) and errors to solutions.
-* **[BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md)** — *Read to back up credentials*. Snapshot commands for `./data` and host `~/.optimai` credential stores.
 * **[TROUBLESHOOTING-SWAP.md](docs/TROUBLESHOOTING-SWAP.md)** — *Read on low-RAM servers (512MB-1GB)*. How to allocate swap memory to avoid Linux OOM kills.
-* **[MIGRATION.md](docs/MIGRATION.md)** — *Read when switching servers*. Moving authentication and state between machines without re-authenticating.
 
-### 🔐 Security, Hardening & Secrets
-* **[SECURITY-CHECKLIST.md](docs/SECURITY-CHECKLIST.md)** — *Read before production launch*. Security checklist covering firewall rules, token isolation, and least-privilege Docker.
-* **[SECRETS-MANAGEMENT.md](docs/SECRETS-MANAGEMENT.md)** — *Read to understand credential safety*. Details owner-only (`0600`) database encryption and gitignore protection.
-* **[CONTAINER-SECURITY.md](docs/CONTAINER-SECURITY.md)** — *Read for container isolation review*. Analysis of Docker socket boundaries and unprivileged execution.
-* **[SSH-PRACTICES.md](docs/SSH-PRACTICES.md)** — *Read to secure your cloud server*. Disabling password authentication and configuring ed25519 SSH keys.
-* **[SECURITY-INCIDENT.md](docs/SECURITY-INCIDENT.md)** — *Read if a token or server is compromised*. Immediate containment and token revocation playbooks.
+### 💾 Data Safety & Upgrades
+* **[BACKUP-RESTORE.md](docs/BACKUP-RESTORE.md)** — *Read to back up credentials*. Snapshot commands for `./data` and host `~/.optimai` credential stores.
+* **[UPGRADING.md](docs/UPGRADING.md)** — *Read when upgrading versions*. Zero-downtime container upgrades that preserve credentials and state.
 
-### ⚙️ Architecture, Configuration & Specs
-* **[ENV-VARS.md](docs/ENV-VARS.md)** — *Read to customize environment variables*. Complete dictionary of every setting with defaults, ranges, and validation rules.
+### ⚙️ Architecture & Technical Reference
 * **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — *Read to understand internal design*. Architecture diagrams showing Supervisor, pexpect worker, and Docker engine IPC.
-* **[STATE-MACHINE.md](docs/STATE-MACHINE.md)** — *Read for supervisor mechanics*. Visual state transitions (`running`, `stopped`, `crashed`, backoff schedule, circuit breaker).
-* **[API.md](docs/API.md)** — *Read for technical bot commands spec*. Contract specifications, argument parsing, rate limits, and IPC responses for all commands.
-* **[DOCKER-COMPOSE-SPECS.md](docs/DOCKER-COMPOSE-SPECS.md)** — *Read to customize Docker Compose*. Volume mappings, restart policies, and healthcheck configurations.
-* **[CONTAINER-RESOURCE-LIMITS.md](docs/CONTAINER-RESOURCE-LIMITS.md)** — *Read to set CPU/RAM limits*. Configuring Docker resource constraints on low-spec hardware.
-* **[GLOSSARY.md](docs/GLOSSARY.md)** — *Read to understand terminology*. Definitions for supervisor, circuit breaker, exponential backoff, crawl4ai, and screen sessions.
-
-### 📊 Observability, Benchmarks & Hardware
-* **[OBSERVABILITY.md](docs/OBSERVABILITY.md)** — *Read to monitor node health*. Log tailing, streaming logs via `/watch`, and HTTP `/health` endpoints.
-* **[METRICS.md](docs/METRICS.md)** & **[METRICS-EXPORTER.md](docs/METRICS-EXPORTER.md)** — *Read for Prometheus/Grafana monitoring*. Exporting uptime, rewards, and health metrics.
-* **[PERFORMANCE.md](docs/PERFORMANCE.md)** — *Read to understand low latency*. Explains concurrent update handling and Docker version caching for sub-50ms command execution.
-* **[BENCHMARKS.md](docs/BENCHMARKS.md)** — *Read for performance numbers*. Measured memory consumption (<60MB RSS) and crash recovery benchmarks.
-* **[HARDWARE.md](docs/HARDWARE.md)** & **[CAPACITY-PLANNING.md](docs/CAPACITY-PLANNING.md)** — *Read before buying hardware*. CPU, RAM, and bandwidth requirements for scaling 10+ nodes.
-
-### 💼 Hosting Economics, Business & Scaling
-* **[HOSTING-PACKAGES.md](docs/HOSTING-PACKAGES.md)** — *Read to start a node hosting service*. Business model guide to hosting nodes for paid clients under your referral link.
-* **[COSTS.md](docs/COSTS.md)** — *Read for cost analysis*. Detailed financial comparison between Google Cloud Free Tier, $4 VPS, and $0 Android Termux setups.
-* **[PROMO-FUNNEL.md](docs/PROMO-FUNNEL.md)** — *Read to monetize stranger messages*. Converting unauthorized bot pings into paid hosting client leads.
-* **[MULTI-OWNER.md](docs/MULTI-OWNER.md)** — *Read for multi-client hosting*. Multi-tenant architecture for managing independent client referral accounts from one bot.
-* **[MULTI-REGION.md](docs/MULTI-REGION.md)** & **[HIGH-AVAILABILITY.md](docs/HIGH-AVAILABILITY.md)** — *Read for global fleets*. Multi-region deployment, failover automation, and redundancy patterns.
-
-### 🔄 Upgrades, Testing & Community
-* **[UPGRADING.md](docs/UPGRADING.md)** & **[UPGRADE-VERIFICATION.md](docs/UPGRADE-VERIFICATION.md)** — *Read when upgrading versions*. Zero-downtime container upgrades that preserve credentials.
-* **[TESTING.md](docs/TESTING.md)** & **[TESTING-MATRIX.md](docs/TESTING-MATRIX.md)** — *Read to run the offline test suite*. 140 automated smoke tests across Arch, Debian, macOS, Windows, and Termux.
+* **[ENV-VARS.md](docs/ENV-VARS.md)** — *Read to customize environment variables*. Complete dictionary of every setting with defaults, ranges, and validation rules.
 * **[FAQ.md](docs/FAQ.md)** — *Read for quick answers*. Frequently asked questions on referral rewards, Docker permissions, and login sessions.
-* **[COMPARISON.md](docs/COMPARISON.md)** — *Read to see why this bot is superior*. Feature-by-feature comparison against running raw unmonitored `optimai-cli` in `tmux`/`screen`.
-* **[CREDITS.md](docs/CREDITS.md)** — *Read for project licenses and credits*. Attribution and third-party notices.
 
 ---
 

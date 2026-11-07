@@ -893,13 +893,15 @@ async def _post_init(app: Application) -> None:
                 pass
 
     docker_ok, docker_ver = await cli.docker_server_version()
-    sup.update_health(authenticated, docker_ok)
+    is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
+    effective_docker_ok = docker_ok or is_termux
+    sup.update_health(authenticated, effective_docker_ok)
 
     has_explicit_state = os.path.exists(sup._state_path)
     should_auto_start = (
         cfg.node_auto_start
         and authenticated
-        and docker_ok
+        and effective_docker_ok
         and not sup.running
         and (sup.desired == "running" or not has_explicit_state)
     )

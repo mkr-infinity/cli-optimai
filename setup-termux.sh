@@ -120,8 +120,8 @@ if command -v termux-wake-lock >/dev/null 2>&1; then
   termux-wake-lock
 fi
 
-# Run in detached screen session
-screen -dmS optimai bash -c "cd $(pwd) && .venv/bin/python -m bot.main"
+# Run in detached screen session with auto-start enabled
+screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && .venv/bin/python -m bot.main"
 
 echo "✅ OptimAI Telegram Node launched in background screen session!"
 echo "• View terminal session:   screen -r optimai"
