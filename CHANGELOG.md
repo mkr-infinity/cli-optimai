@@ -8,9 +8,10 @@
 - Bundled official `optimai-cli` Linux binary into Dockerfile and added host installation checks in `setup-vps.sh`.
 - Automatic Railway `$PORT` detection and HTTP health server binding (`GET /health -> 200 OK`).
 - Multi-environment local execution guide and auto-fallback storage path (`./data`) when running outside Docker on macOS, Linux, and Windows.
+- Auto-detection for local machines: zero-config `.env` loading, binary location discovery (`/usr/local/bin`, `~/.local/bin`, Windows Program Files), host `~/.optimai` reuse, and protected gitignore rules.
 - OptimAI referral link (`https://node.optimai.network/register?ref=646D12E7`) integrated across Telegram inline buttons and guides.
 - Streamlined 5-step beginner setup guide and visual cheatsheet in `README.md`.
-- Expanded smoke test coverage to 108 automated checks.
+- Expanded smoke test coverage to 112 automated checks.
 
 ## v1.1.0 — 2026-11-07
 

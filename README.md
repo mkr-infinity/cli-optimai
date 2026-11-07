@@ -138,10 +138,10 @@ You can run the bot on your local personal computer just as easily as on a remot
 3. Copy config and launch:
    ```bash
    cp .env.example .env
-   # Enter your BOT_TOKEN and ALLOWED_IDS in .env
+   # Enter your TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS in .env
    python -m bot.main
    ```
-   *(The bot automatically detects local mode and saves session data to `./data`)*.
+   *(The bot automatically detects your local machine environment, auto-loads `.env`, resolves the local `optimai-cli` binary, reuses host `~/.optimai` credentials if present, and routes runtime state to `./data`)*.
 
 ---
 

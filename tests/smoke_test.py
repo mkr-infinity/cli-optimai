@@ -52,7 +52,13 @@ def check(name: str, cond: bool, info: str = "") -> None:
 
 
 # import AFTER env overrides
-from bot.config import Config, ConfigError  # noqa: E402
+from bot.config import (  # noqa: E402
+    Config,
+    ConfigError,
+    find_local_optimai_bin,
+    is_local_environment,
+    load_dotenv,
+)
 from bot.gatekeeper import UnauthorizedGate  # noqa: E402
 from bot.login_session import LoginManager, LoginSession  # noqa: E402
 from bot.optimai import (  # noqa: E402
@@ -166,6 +172,28 @@ check(
 check(
     "config: data dir + optimai home created/resolved",
     os.path.isdir(cfg.data_dir) and cfg.optimai_home == os.path.abspath(cfg.optimai_home),
+)
+# test dotenv parser
+sample_env_file = os.path.join(TMP, "sample.env")
+with open(sample_env_file, "w", encoding="utf-8") as sf:
+    sf.write("# comment\nFOO=bar\nQUOTED=\"hello world\"\nEMPTY=\n")
+parsed_env = load_dotenv(sample_env_file)
+check(
+    "config: load_dotenv parses keys, values and quotes",
+    parsed_env.get("FOO") == "bar" and parsed_env.get("QUOTED") == "hello world" and parsed_env.get("EMPTY") == "",
+)
+check(
+    "config: is_local_environment returns boolean",
+    is_local_environment() in (True, False),
+)
+check(
+    "config: find_local_optimai_bin resolves binary",
+    bool(find_local_optimai_bin(STUB)),
+)
+local_cfg = Config.load(env=base_env(OPTIMAI_HOME="/data/home", DATA_DIR="/data/data"))
+check(
+    "config: local auto-detect safely overrides /data to writable local paths",
+    not local_cfg.data_dir.startswith("/data/data") or os.access("/data", os.W_OK),
 )
 
 # ======================================================================
@@ -522,6 +550,7 @@ check(
     '"$3"' not in stub_src and 'for arg in "$@"' in stub_src,
 )
 clean_env = {k: v for k, v in os.environ.items() if not k.startswith("TELEGRAM_")}
+clean_env["NO_DOTENV"] = "1"
 p_noenv = subprocess.run([sys.executable, "-m", "bot.main"], cwd=ROOT, env=clean_env, capture_output=True, text=True)
 check(
     "main: running bot.main without env exits 1 with CONFIG ERROR",
