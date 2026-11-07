@@ -2,7 +2,7 @@
 
 ## Project
 
-**OptimAI Telegram Node v1.2.0** — Dockerized Telegram bot controlling an
+**OptimAI Telegram Node v1.3.0** — Dockerized Telegram bot controlling an
 OptimAI Network CLI node 24/7.
 
 - Author: Mohammad Kaif Raja (mkr-infinity)

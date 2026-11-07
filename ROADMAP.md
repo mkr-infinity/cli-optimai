@@ -34,7 +34,19 @@ Versioned, scope-honest plan. Deployed = merged to main and verified by CI.
 - [x] Referral registration link integration across Telegram and documentation
 - [x] Comprehensive 108-check offline verification suite
 
-## v1.3 (next)
+## v1.3 (shipped)
+
+- [x] Auto-download of compatible `optimai-cli` binary on boot
+- [x] Detached 24/7 background worker session viewer (`/screen`) with interactive buttons
+- [x] Secure persistent credentials database (`credentials.json`) with auto-restore
+- [x] Complete database and token purge on `/logout`
+- [x] Real-time upstream update watcher and automatic restart
+- [x] Global exception and error reporting to Telegram
+- [x] Live terminal log streaming (`python -m bot.main logs`, `make logs`)
+- [x] Concurrent update handling and Docker version caching for low latency
+- [x] 134-check offline verification suite
+
+## v1.4 (next)
 
 - [ ] Multi-node fleet: one bot supervising several nodes/regions
 - [ ] Metrics dashboard: uptime/balance history charts (web view off by default)

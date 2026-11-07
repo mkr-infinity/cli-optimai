@@ -1,9 +1,9 @@
-# ⛏️ OptimAI Telegram Node v1.2.0
+# ⛏️ OptimAI Telegram Node v1.3.0
 
 ![CI](https://github.com/mkr-infinity/optimai-cli/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-green)
-![Version](https://img.shields.io/badge/version-1.2.0-orange)
+![Version](https://img.shields.io/badge/version-1.3.0-orange)
 [![Telegram](https://img.shields.io/badge/contact-%40mkr__infinity-blue)](https://t.me/mkr_infinity)
 
 > [!IMPORTANT]
@@ -176,6 +176,7 @@ Every command sent to the bot targets the official upstream `optimai-cli` direct
 | `/stop_node` (or `/stop`) | `(Graceful SIGINT / Ctrl+C)` | Admin | Stop the node process gracefully |
 | `/restart_node` | Stop + Start | Admin | Restart node & reset circuit breaker |
 | `/status` | `optimai-cli node status` | Admin | Live status: node uptime, Docker health, crash count |
+| `/screen` | Detached session | Admin | View 24/7 background worker session, PID & interactive buttons |
 | `/rewards` | `optimai-cli rewards balance` | Admin | Display current OptimAI points & rewards balance |
 | `/logs` (or `/log`) | `tail node.log` | Admin | View the last 40 lines of node logs in Telegram |
 | `/watch [sec]` | `tail -f node.log` | Admin | Live streaming log tail in Telegram (10–600s) |
@@ -206,6 +207,22 @@ python -m bot.main /log
 # Option 3: Via helper script
 bash scripts/logs.sh
 ```
+
+### 🖥️ Detached 24/7 Background Session (`/screen`)
+In the official OptimAI guide, users run `screen -S optimai` to keep the CLI running in the background. Our bot manages the node in an autonomous background session automatically:
+- Send `/screen` in Telegram to inspect the background worker, view active PID, uptime, and latest output snapshot.
+- Interactive buttons allow you to refresh status, live-watch logs, or stop/start the node directly.
+- Concurrent updates ensure you can send subsequent commands (`/status`, `/rewards`, `/logs`, `/update`) at any time without blocking or interrupting the running node.
+
+### 🔐 Persistent Credentials Database & Clean `/logout`
+- **Persistent Database (`credentials.json`)**: When you log in (via browser OAuth or `/login <email> <password>`), the bot stores the session snapshot into a secure, owner-only (`0600`) database file inside `./data`.
+- **Automatic Recovery**: If temporary container files or `auth.json` are lost during a rebuild, the bot restores authentication from the database automatically.
+- **Clean Purge on `/logout`**: Sending `/logout` cleanly clears the credentials database, host configs, and active session tokens.
+
+### 🔄 Automatic Updates & Real-Time Error Reporting
+- **Auto-Download**: If the `optimai-cli` binary is missing on boot, the bot automatically downloads the official release for your operating system and architecture.
+- **Auto-Update**: When an update signal is detected in the node log (`Important OptimAI CLI update available`), the supervisor updates the binary and restarts the mining node automatically.
+- **Real-Time Error Reporting**: If any command fails or encounters an exception, the exact error details are surfaced directly in Telegram.
 
 ---
 
@@ -343,5 +360,5 @@ Detailed guides are available in the [`docs/`](docs/) directory:
 
 ### Attribution
 
-**OptimAI Telegram Node v1.2.0** — Created by **Mohammad Kaif Raja (mkr-infinity)**
+**OptimAI Telegram Node v1.3.0** — Created by **Mohammad Kaif Raja (mkr-infinity)**
 [Telegram @mkr_infinity](https://t.me/mkr_infinity) · [Support](https://buymeacoffee.com/mkr_infinity) · UPI: `mkr-infinity@ybl`

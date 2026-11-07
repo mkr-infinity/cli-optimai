@@ -42,7 +42,7 @@ If an upstream change introduces issues on your environment:
 
 ```bash
 # Checkout previous git tag/commit
-git checkout v1.2.0
+git checkout v1.3.0
 
 # Re-up the previous container image
 docker compose up -d --build

@@ -9,11 +9,11 @@ from __future__ import annotations
 import re
 import sys
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 BANNER_TEXT = """
 \033[1;36m========================================================================================\033[0m
-\033[1;32m  OptimAI Telegram Node - Node Controller Bot v1.2.0\033[0m
+\033[1;32m  OptimAI Telegram Node - Node Controller Bot v1.3.0\033[0m
 \033[1;30m  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\033[0m
   \033[1;35m"Your OptimAI node, 24/7, controlled from Telegram. ⛏️"\033[0m
 

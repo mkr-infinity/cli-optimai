@@ -201,7 +201,7 @@ def download_compatible_cli(dest_path: str, url: str | None = None) -> Tuple[boo
     try:
         req = urllib.request.Request(
             target_url,
-            headers={"User-Agent": "OptimAI-Node-Controller/1.2.0"},
+            headers={"User-Agent": "OptimAI-Node-Controller/1.3.0"},
         )
         with urllib.request.urlopen(req, timeout=60) as resp, open(temp_path, "wb") as out_file:
             shutil.copyfileobj(resp, out_file)

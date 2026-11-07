@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.3.0 — 2026-11-07
+
+### Added
+- Auto-download of compatible `optimai-cli` binary on startup if missing.
+- Autonomous background worker session viewer via `/screen` command with live PID, uptime, and inline interactive action buttons.
+- Persistent credentials database (`credentials.json` in DATA_DIR) with automatic restoration if `auth.json` is lost.
+- Complete database and token purge on `/logout`.
+- Automated upstream update watcher: detects `Important OptimAI CLI update available` in logs, downloads update, and restarts node automatically.
+- Global error handler surfacing all unhandled exceptions and command errors directly to Telegram users.
+- Live terminal log streaming (`python -m bot.main logs`, `make logs`, `scripts/logs.sh`).
+- Concurrent update handling in `python-telegram-bot` and Docker version caching to eliminate bot command latency.
+- Comprehensive smoke test suite expanded to 134 checks with 100% pass rate.
+
 ## v1.2.0 — 2026-11-07
 
 ### Added
