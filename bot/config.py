@@ -168,22 +168,25 @@ def find_local_optimai_bin(preferred: str | None = None) -> str:
 
 
 def fix_local_permissions(data_dir: str) -> None:
-    """If running locally, check if files in data_dir are unreadable (e.g. created
-    by root inside a Docker container). If unreadable and docker is available,
-    restore ownership to current user."""
-    if not os.path.exists(data_dir) or not hasattr(os, "getuid"):
+    """If running locally, check if data_dir or its files are unreadable or unwritable.
+    Restore ownership to current user or make read-write."""
+    if not os.path.exists(data_dir):
         return
-    needs_fix = False
-    for root, dirs, files in os.walk(data_dir):
-        for name in files:
-            p = os.path.join(root, name)
-            if not os.access(p, os.R_OK | os.W_OK):
+    needs_fix = not os.access(data_dir, os.W_OK)
+    if not needs_fix:
+        for root, dirs, files in os.walk(data_dir):
+            if not os.access(root, os.W_OK):
                 needs_fix = True
                 break
-        if needs_fix:
-            break
+            for name in files:
+                p = os.path.join(root, name)
+                if not os.access(p, os.R_OK | os.W_OK):
+                    needs_fix = True
+                    break
+            if needs_fix:
+                break
 
-    if needs_fix and shutil.which("docker"):
+    if needs_fix and hasattr(os, "getuid") and shutil.which("docker"):
         try:
             uid, gid = os.getuid(), os.getgid()
             subprocess.run(
@@ -197,7 +200,7 @@ def fix_local_permissions(data_dir: str) -> None:
 
 
 def sync_local_credentials(dir_a: str, dir_b: str) -> None:
-    """Synchronize optimai-cli credentials between two home directories
+    """Synchronize optimai-cli credentials and identity between two home directories
     (e.g. ./data/home and ~/.config/optimai-cli)."""
     if not dir_a or not dir_b or dir_a == dir_b:
         return
@@ -207,8 +210,8 @@ def sync_local_credentials(dir_a: str, dir_b: str) -> None:
     auth_a = os.path.join(path_a, "auth.json")
     auth_b = os.path.join(path_b, "auth.json")
 
-    has_a = os.path.isfile(auth_a) and os.access(auth_a, os.R_OK)
-    has_b = os.path.isfile(auth_b) and os.access(auth_b, os.R_OK)
+    has_a = os.path.isfile(auth_a) and os.access(auth_a, os.R_OK) and os.path.getsize(auth_a) > 0
+    has_b = os.path.isfile(auth_b) and os.access(auth_b, os.R_OK) and os.path.getsize(auth_b) > 0
 
     if not has_a and not has_b:
         return
@@ -229,7 +232,7 @@ def sync_local_credentials(dir_a: str, dir_b: str) -> None:
     if src and dst:
         try:
             os.makedirs(dst, exist_ok=True)
-            for fname in ("auth.json", "user.json"):
+            for fname in ("auth.json", "user.json", "device.json", "node_identity.json", "uptime.json"):
                 sfile = os.path.join(src, fname)
                 dfile = os.path.join(dst, fname)
                 if os.path.isfile(sfile) and os.access(sfile, os.R_OK):
@@ -240,46 +243,106 @@ def sync_local_credentials(dir_a: str, dir_b: str) -> None:
 
 def save_credential_database(credentials_path: str, data: dict) -> bool:
     """Save authentication details and snapshot into persistent credentials.json database."""
+    written = False
+    targets = [credentials_path]
     try:
-        os.makedirs(os.path.dirname(os.path.abspath(credentials_path)), exist_ok=True)
-        temp_path = credentials_path + ".tmp"
-        with open(temp_path, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, indent=2)
-        if hasattr(os, "chmod"):
-            try:
-                os.chmod(temp_path, 0o600)
-            except OSError:
-                pass
-        os.replace(temp_path, credentials_path)
-        return True
-    except OSError:
-        return False
+        p_dir = os.path.dirname(os.path.abspath(credentials_path))
+        targets.extend([
+            os.path.join(p_dir, "credentials.json"),
+            os.path.join(os.path.dirname(p_dir), "credentials.json"),
+            os.path.abspath("./data/credentials.json"),
+            os.path.abspath("./data/data/credentials.json"),
+            "/data/credentials.json",
+            "/data/data/credentials.json",
+        ])
+    except Exception:
+        pass
+
+    seen = set()
+    for target in targets:
+        if not target or target in seen:
+            continue
+        seen.add(target)
+        try:
+            parent = os.path.dirname(target)
+            if not os.path.isdir(parent):
+                continue
+            temp_path = target + ".tmp"
+            with open(temp_path, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=2)
+            if hasattr(os, "chmod"):
+                try:
+                    os.chmod(temp_path, 0o666)
+                except OSError:
+                    pass
+            os.replace(temp_path, target)
+            written = True
+        except OSError:
+            pass
+    return written
 
 
 def load_credential_database(credentials_path: str) -> dict:
     """Load saved credentials from credentials.json database."""
-    if not os.path.isfile(credentials_path):
-        return {}
+    candidates = [credentials_path]
     try:
-        with open(credentials_path, "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-            return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
+        p_dir = os.path.dirname(os.path.abspath(credentials_path))
+        candidates.extend([
+            os.path.join(p_dir, "credentials.json"),
+            os.path.join(os.path.dirname(p_dir), "credentials.json"),
+            os.path.abspath("./data/credentials.json"),
+            os.path.abspath("./data/data/credentials.json"),
+            "/data/credentials.json",
+            "/data/data/credentials.json",
+            os.path.expanduser("~/.config/optimai-cli/credentials.json"),
+        ])
+    except Exception:
+        pass
+
+    seen = set()
+    for c in candidates:
+        if not c or c in seen:
+            continue
+        seen.add(c)
+        if not os.path.isfile(c) or os.path.getsize(c) == 0:
+            continue
+        try:
+            with open(c, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+                if isinstance(data, dict) and (data.get("auth_snapshot") or data.get("email")):
+                    return data
+        except (OSError, ValueError):
+            pass
+    return {}
 
 
 def clear_credential_database(credentials_path: str, homes: list[str]) -> bool:
     """Purge credentials.json database and remove auth.json & user.json in all homes."""
-    if os.path.isfile(credentials_path):
-        try:
-            os.remove(credentials_path)
-        except OSError:
-            pass
+    targets = [credentials_path]
+    try:
+        p_dir = os.path.dirname(os.path.abspath(credentials_path))
+        targets.extend([
+            os.path.join(p_dir, "credentials.json"),
+            os.path.join(os.path.dirname(p_dir), "credentials.json"),
+            os.path.abspath("./data/credentials.json"),
+            os.path.abspath("./data/data/credentials.json"),
+            "/data/credentials.json",
+            "/data/data/credentials.json",
+        ])
+    except Exception:
+        pass
+
+    for target in targets:
+        if target and os.path.isfile(target):
+            try:
+                os.remove(target)
+            except OSError:
+                pass
     for base in homes:
         if not base:
             continue
         cfg_dir = os.path.join(base, ".config", "optimai-cli")
-        for fname in ("auth.json", "user.json"):
+        for fname in ("auth.json", "user.json", "device.json", "node_identity.json", "uptime.json"):
             fpath = os.path.join(cfg_dir, fname)
             if os.path.isfile(fpath):
                 try:
@@ -290,31 +353,36 @@ def clear_credential_database(credentials_path: str, homes: list[str]) -> bool:
 
 
 def restore_credentials_from_database(credentials_path: str, optimai_home: str) -> bool:
-    """If auth.json is missing in optimai_home but credentials.json has a snapshot, restore it."""
+    """If auth.json is missing in optimai_home or database has newer credentials, restore it."""
     dest_dir = os.path.join(optimai_home, ".config", "optimai-cli")
     auth_file = os.path.join(dest_dir, "auth.json")
-    if os.path.isfile(auth_file) and os.access(auth_file, os.R_OK):
-        return False
 
     db = load_credential_database(credentials_path)
     snapshot = db.get("auth_snapshot")
-    if snapshot and isinstance(snapshot, dict):
-        try:
-            os.makedirs(dest_dir, exist_ok=True)
-            with open(auth_file, "w", encoding="utf-8") as fh:
-                json.dump(snapshot, fh, indent=2)
-            if hasattr(os, "chmod"):
-                try:
-                    os.chmod(auth_file, 0o600)
-                except OSError:
-                    pass
-            user_snapshot = db.get("user_snapshot")
-            if user_snapshot and isinstance(user_snapshot, dict):
-                with open(os.path.join(dest_dir, "user.json"), "w", encoding="utf-8") as fh:
-                    json.dump(user_snapshot, fh, indent=2)
-            return True
-        except OSError:
-            pass
+    if not snapshot or not isinstance(snapshot, dict):
+        return False
+
+    db_updated = db.get("updated_at", 0)
+    auth_mtime = os.path.getmtime(auth_file) if os.path.isfile(auth_file) else 0
+    if os.path.isfile(auth_file) and auth_mtime >= db_updated and db_updated > 0:
+        return False
+
+    try:
+        os.makedirs(dest_dir, exist_ok=True)
+        with open(auth_file, "w", encoding="utf-8") as fh:
+            json.dump(snapshot, fh, indent=2)
+        if hasattr(os, "chmod"):
+            try:
+                os.chmod(auth_file, 0o600)
+            except OSError:
+                pass
+        user_snapshot = db.get("user_snapshot")
+        if user_snapshot and isinstance(user_snapshot, dict):
+            with open(os.path.join(dest_dir, "user.json"), "w", encoding="utf-8") as fh:
+                json.dump(user_snapshot, fh, indent=2)
+        return True
+    except OSError:
+        pass
     return False
 
 

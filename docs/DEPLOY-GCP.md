@@ -75,7 +75,7 @@ In the Google Cloud SSH terminal, run:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/mkr-infinity/optimai-cli.git && cd optimai-cli
+git clone https://github.com/mkr-infinity/cli-optimai.git && cd cli-optimai
 
 # 2. Run the multi-distro machine setup (installs Docker Engine & dependencies)
 sudo bash setup-vps.sh

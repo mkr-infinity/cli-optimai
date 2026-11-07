@@ -259,20 +259,23 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "<b>OptimAI Telegram Node — commands</b>\n\n"
         "<b>Node Management:</b>\n"
         "/start — welcome overview, system health & quick controls\n"
-        "/start_node — start the node and Docker AI mining\n"
-        "/stop_node (or /stop) — stop the node & background workloads\n"
-        "/restart_node — restart node & reset circuit breaker\n"
-        "/status — view node status, health, Docker & uptime\n"
+        "/start_node (or /startnode) — start the node and Docker AI mining\n"
+        "/stop_node (or /stop, /stopnode) — stop the node & background workloads\n"
+        "/restart_node (or /restart, /restartnode) — restart node & reset circuit breaker\n"
+        "/node [start|stop|restart|status] — official CLI node controller\n"
+        "/status (or /nodestatus) — view node status, health, Docker & uptime\n"
         "/screen — view 24/7 background worker session\n"
         "/logs (or /log) — show latest node output\n"
         "/watch [seconds] — live-tail logs in chat (10-600s)\n\n"
         "<b>OptimAI Account (official CLI):</b>\n"
         "/login — browser login via Node Dashboard (optimai-cli auth login)\n"
         "/login --legacy [email pwd] — legacy login via email & password (optimai-cli auth login --legacy)\n"
-        "/auth_status (or /auth) — check OptimAI authentication status\n"
+        "/auth [login|logout|me|status] — official CLI auth controller\n"
+        "/auth_status — check OptimAI authentication status\n"
         "/me — view OptimAI CLI profile & Telegram account\n"
+        "/sync — force bi-directional credential & database sync with terminal\n"
         "/logout — sign out from OptimAI account\n"
-        "/rewards — check OptimAI mining rewards balance\n"
+        "/rewards (or /reward, /balance) — check OptimAI mining rewards balance\n"
         "/rewardadded [on|off] — toggle real-time mining reward notifications\n"
         "/cancel — cancel pending login session\n\n"
         "<b>System & Diagnostics:</b>\n"
@@ -302,13 +305,17 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     sup.update_health(authenticated, docker_ok)
     snap = sup.snapshot()
 
+    _ok, node_out = await cli.node_status()
     if snap["running"]:
         node_line = f"🟢 running (PID {snap['pid']}, Uptime {snap['uptime']})"
-        _ok, node_out = await cli.node_status()
         node_detail = f"\n<pre>{html.escape(node_out)}</pre>" if node_out else ""
     else:
         node_line = "🔴 stopped (offline)"
-        node_detail = "\n<i>Node is stopped. Send /start_node or tap ▶️ Start Node below.</i>"
+        node_detail = (
+            f"\n<pre>{html.escape(node_out)}</pre>\n<i>Node is stopped. Send /start_node or tap ▶️ Start Node below.</i>"
+            if node_out
+            else "\n<i>Node is stopped. Send /start_node or tap ▶️ Start Node below.</i>"
+        )
 
     bot_uptime_line = f"Bot uptime: {fmt_uptime(time.monotonic() - _BOT_START_MONOTONIC)}"
     breaker_line = (
@@ -539,18 +546,21 @@ async def _execute_email_password_login(
     await _reply(update, "⏳ Attempting direct email & password authentication...")
     ok, msg = await login.login_legacy(email, password)
     if ok:
-        if cfg.is_local:
-            sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+        sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
         auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
+        if not os.path.isfile(auth_file):
+            u_auth = os.path.expanduser("~/.config/optimai-cli/auth.json")
+            if os.path.isfile(u_auth):
+                auth_file = u_auth
         if os.path.isfile(auth_file):
             try:
                 snap_data = json.load(open(auth_file))
-                user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
+                user_file = os.path.join(os.path.dirname(auth_file), "user.json")
                 u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
                 save_credential_database(
                     cfg.credentials_path(),
                     {
-                        "email": email,
+                        "email": email or u_snap.get("email", ""),
                         "auth_type": "legacy",
                         "auth_snapshot": snap_data,
                         "user_snapshot": u_snap,
@@ -559,6 +569,9 @@ async def _execute_email_password_login(
                 )
             except Exception:
                 pass
+        for alt_home in (os.path.expanduser("~"), "/data/home", "./data/home"):
+            if os.path.isdir(alt_home) and alt_home != cfg.optimai_home:
+                sync_local_credentials(cfg.optimai_home, alt_home)
         docker_ok, _ = await cli.docker_server_version()
         auto_msg = ""
         if cfg.node_auto_start and docker_ok and not sup.running:
@@ -566,7 +579,7 @@ async def _execute_email_password_login(
             auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
         await _reply(
             update,
-            f"✅ <b>Login successful</b>\n\n{html.escape(msg)}\n<i>Credentials saved to database.</i>{auto_msg}\n\n"
+            f"✅ <b>Login successful</b>\n\n{html.escape(msg)}\n<i>Credentials saved to database & synchronized with terminal.</i>{auto_msg}\n\n"
             f"{'Use /status to monitor mining.' if auto_msg else 'Use /start_node to start mining!'}",
         )
     else:
@@ -580,8 +593,29 @@ async def _execute_email_password_login(
 async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, login = _wd(context)
     if await cli.is_authenticated():
-        await _reply(update, "✅ Already authenticated. Use /auth_status for details.")
-        return
+        if not context.args:
+            _rc, out_me, _ = await cli.auth_me()
+            email_info = out_me.strip() or "Connected"
+            auth_msg = (
+                f"✅ <b>Already Authenticated:</b>\n"
+                f"<pre>{html.escape(email_info)}</pre>\n\n"
+                "Your node is linked to your OptimAI account. To switch accounts or re-login, choose an option below:\n\n"
+                "• Send <code>/login --legacy email password</code> to sign in with another account\n"
+                "• Send <code>/sync</code> to synchronize credentials with terminal\n"
+                "• Send <code>/logout</code> to disconnect"
+            )
+            auth_kbd = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🌐 Re-login (Browser)", callback_data="login_method_browser"),
+                    InlineKeyboardButton("📧 Re-login (Legacy)", callback_data="login_method_legacy"),
+                ],
+                [
+                    InlineKeyboardButton("🔄 Sync Terminal (/sync)", callback_data="welcome_sync"),
+                    InlineKeyboardButton("🚪 Logout", callback_data="login_logout"),
+                ],
+            ])
+            await _reply(update, auth_msg, auth_kbd)
+            return
 
     # Direct arguments handling matching official CLI:
     # 1) /login --legacy <email> <password> or /login <email> <password> -> Legacy Login
@@ -665,6 +699,67 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ],
     ])
     await _reply(update, text, keyboard)
+
+
+async def cmd_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /node [start|stop|restart|status] matching official CLI subcommands."""
+    if context.args:
+        sub = context.args[0].lower().strip()
+        context.args = list(context.args[1:])
+        if sub in ("start", "run", "up"):
+            await cmd_start_node(update, context)
+            return
+        elif sub in ("stop", "down", "kill"):
+            await cmd_stop_node(update, context)
+            return
+        elif sub in ("restart", "reboot"):
+            await cmd_restart_node(update, context)
+            return
+        elif sub in ("status", "info"):
+            await cmd_status(update, context)
+            return
+    await cmd_status(update, context)
+
+
+async def cmd_auth(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /auth [login|logout|status|me] matching official CLI subcommands."""
+    if context.args:
+        sub = context.args[0].lower().strip()
+        context.args = list(context.args[1:])
+        if sub in ("login", "signin"):
+            await cmd_login(update, context)
+            return
+        elif sub in ("logout", "signout"):
+            await cmd_logout(update, context)
+            return
+        elif sub in ("me", "profile", "whoami"):
+            await cmd_me(update, context)
+            return
+        elif sub in ("status", "check"):
+            await cmd_auth_status(update, context)
+            return
+    await cmd_auth_status(update, context)
+
+
+async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Force bi-directional credential and database sync between bot and workspace terminal."""
+    cfg, cli, _sup, _gate, _login = _wd(context)
+    restore_credentials_from_database(cfg.credentials_path(), cfg.optimai_home)
+    for h in (os.path.expanduser("~"), "/data/home", "./data/home"):
+        if os.path.isdir(h):
+            sync_local_credentials(cfg.optimai_home, h)
+            restore_credentials_from_database(cfg.credentials_path(), h)
+    rc, out, err = await cli.auth_status()
+    auth_summary = (out + err).strip() or f"status code {rc}"
+    await _reply(
+        update,
+        "🔄 <b>Credential & Database Synchronization Complete</b>\n\n"
+        f"• <b>Auth Status:</b> <code>{html.escape(auth_summary)}</code>\n"
+        f"• <b>Database:</b> <code>{html.escape(cfg.credentials_path())}</code>\n"
+        f"• <b>OptimAI Home:</b> <code>{html.escape(cfg.optimai_home)}</code>\n"
+        f"• <b>Host Terminal:</b> Synced with workspace (<code>~/.config/optimai-cli</code>)\n\n"
+        "<i>Your authenticated OptimAI session is active across both the Telegram bot and the terminal!</i>",
+    )
 
 
 async def cmd_update_cli(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -934,6 +1029,10 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await cmd_logs(update, context)
     elif data == "welcome_login":
         await cmd_login(update, context)
+    elif data == "welcome_sync":
+        await cmd_sync(update, context)
+    elif data == "login_logout":
+        await cmd_logout(update, context)
     elif data == "welcome_refresh":
         text, keyboard = await build_welcome_card(cfg, cli, sup)
         if query.message:
@@ -1142,25 +1241,48 @@ async def on_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         tail = summary[:1500]
         auto_msg = ""
         if ok:
-            if cfg.is_local:
-                sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
+            sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
             auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
+            if not os.path.isfile(auth_file):
+                u_auth = os.path.expanduser("~/.config/optimai-cli/auth.json")
+                if os.path.isfile(u_auth):
+                    auth_file = u_auth
             if os.path.isfile(auth_file):
                 try:
                     snap_data = json.load(open(auth_file))
-                    user_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "user.json")
+                    user_file = os.path.join(os.path.dirname(auth_file), "user.json")
                     u_snap = json.load(open(user_file)) if os.path.isfile(user_file) else {}
                     save_credential_database(
                         cfg.credentials_path(),
-                        {"auth_type": "oauth", "auth_snapshot": snap_data, "user_snapshot": u_snap, "updated_at": time.time()}
+                        {
+                            "email": u_snap.get("email", ""),
+                            "auth_type": "oauth",
+                            "auth_snapshot": snap_data,
+                            "user_snapshot": u_snap,
+                            "updated_at": time.time(),
+                        },
                     )
                 except Exception:
                     pass
+            for alt_home in (os.path.expanduser("~"), "/data/home", "./data/home"):
+                if os.path.isdir(alt_home) and alt_home != cfg.optimai_home:
+                    sync_local_credentials(cfg.optimai_home, alt_home)
             docker_ok, _ = await cli.docker_server_version()
             if cfg.node_auto_start and docker_ok and not sup.running:
                 pid = await sup.request_start()
                 auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
-        await _reply(update, f"{header}\n\n<pre>{html.escape(tail)}</pre>{auto_msg}")
+        await _reply(update, f"{header}\n\n<pre>{html.escape(tail)}</pre>\n<i>Credentials saved to database & synchronized with terminal.</i>{auto_msg}")
+        return
+
+    # Check if text looks like an authorization key or redirect URL without active session
+    if not login.has_pending and ("node.optimai.network" in text.lower() or "code=" in text.lower()):
+        await _reply(
+            update,
+            "💡 <b>Authentication Key Detected:</b>\n\n"
+            "To complete login, please start a browser login session first by sending /login, "
+            "then paste your redirect key or authorization code within 3 minutes.\n\n"
+            "Send /login to begin.",
+        )
         return
 
     # Ignore ordinary friendly chat
@@ -1310,13 +1432,23 @@ def register_handlers(app: Application, admin_filter) -> None:
     handlers = [
         # 1. admin-gated commands
         CommandHandler("help", cmd_help, filters=admin_filter),
+        CommandHandler("h", cmd_help, filters=admin_filter),
         CommandHandler("status", cmd_status, filters=admin_filter),
+        CommandHandler("stat", cmd_status, filters=admin_filter),
+        CommandHandler("nodestatus", cmd_status, filters=admin_filter),
         CommandHandler("start_node", cmd_start_node, filters=admin_filter),
+        CommandHandler("startnode", cmd_start_node, filters=admin_filter),
         CommandHandler("start", cmd_start, filters=admin_filter),
         CommandHandler("stop_node", cmd_stop_node, filters=admin_filter),
+        CommandHandler("stopnode", cmd_stop_node, filters=admin_filter),
         CommandHandler("stop", cmd_stop_node, filters=admin_filter),
         CommandHandler("restart_node", cmd_restart_node, filters=admin_filter),
+        CommandHandler("restartnode", cmd_restart_node, filters=admin_filter),
+        CommandHandler("restart", cmd_restart_node, filters=admin_filter),
+        CommandHandler("node", cmd_node, filters=admin_filter),
         CommandHandler("rewards", cmd_rewards, filters=admin_filter),
+        CommandHandler("reward", cmd_rewards, filters=admin_filter),
+        CommandHandler("balance", cmd_rewards, filters=admin_filter),
         CommandHandler("rewardadded", cmd_rewardadded, filters=admin_filter),
         CommandHandler("logs", cmd_logs, filters=admin_filter),
         CommandHandler("log", cmd_logs, filters=admin_filter),
@@ -1325,8 +1457,9 @@ def register_handlers(app: Application, admin_filter) -> None:
         CommandHandler("login_legacy", cmd_login, filters=admin_filter),
         CommandHandler("logout", cmd_logout, filters=admin_filter),
         CommandHandler("auth_status", cmd_auth_status, filters=admin_filter),
-        CommandHandler("auth", cmd_auth_status, filters=admin_filter),
+        CommandHandler("auth", cmd_auth, filters=admin_filter),
         CommandHandler("me", cmd_me, filters=admin_filter),
+        CommandHandler("sync", cmd_sync, filters=admin_filter),
         CommandHandler("cancel", cmd_cancel, filters=admin_filter),
         CommandHandler("update_cli", cmd_update_cli, filters=admin_filter),
         CommandHandler("update", cmd_update_cli, filters=admin_filter),

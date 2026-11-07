@@ -10,7 +10,7 @@ Open Termux on your Android device and paste:
 
 ```bash
 pkg update -y && pkg install -y git curl
-git clone https://github.com/mkr-infinity/optimai-cli.git
+git clone https://github.com/mkr-infinity/cli-optimai.git
 cd optimai-cli
 bash setup-termux.sh
 ```
@@ -52,7 +52,7 @@ bash setup-termux.sh
 Clone the repository and run the setup script:
 
 ```bash
-git clone https://github.com/mkr-infinity/optimai-cli.git
+git clone https://github.com/mkr-infinity/cli-optimai.git
 cd optimai-cli
 bash setup-termux.sh
 ```

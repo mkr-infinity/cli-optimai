@@ -300,6 +300,7 @@ check("codespaces: setup-codespaces.sh and .devcontainer/devcontainer.json exist
 check("windows: setup-windows.ps1 and start.bat exist", os.path.isfile(os.path.join(ROOT, "setup-windows.ps1")) and os.path.isfile(os.path.join(ROOT, "start.bat")))
 check("prompt: scripts/prompt-env.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-env.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-env.sh"), os.X_OK))
 check("prompt: scripts/prompt-login.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-login.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-login.sh"), os.X_OK))
+check("sync: scripts/sync-credentials.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "sync-credentials.sh")) and os.access(os.path.join(ROOT, "scripts", "sync-credentials.sh"), os.X_OK))
 
 # Test login prompt skip behavior on empty input (isolated stub auth flag)
 prompt_auth_file = os.path.join(TMP, "prompt_stub_auth")
@@ -699,6 +700,7 @@ with open(os.path.join(ROOT, "bot", "main.py"), encoding="utf-8") as fh:
 for cmd in (
     "help", "status", "start_node", "stop_node", "restart_node", "rewards", "rewardadded",
     "logs", "log", "watch", "login", "auth_status", "me", "logout", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy", "screen", "env", "setenv",
+    "sync", "node", "auth", "restart", "reward", "balance", "startnode", "stopnode", "restartnode", "nodestatus",
 ):
     check(
         f"main: /{cmd} handler registered",
