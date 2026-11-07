@@ -172,8 +172,9 @@ Every command sent to the bot targets the official upstream `optimai-cli` direct
 | `/logout` | `optimai-cli auth logout` | Admin | Sign out from OptimAI and clear stored credentials |
 | `/auth_status` (or `/auth`) | `optimai-cli auth status` | Admin | Check live OptimAI account login status |
 | `/me` | `optimai-cli auth me` | Admin | View authenticated OptimAI profile & Telegram details |
-| `/start_node` (or `/start`)| `optimai-cli node start` | Admin | Start the node process and Docker AI miner containers |
-| `/stop_node` (or `/stop`) | `(Graceful SIGINT / Ctrl+C)` | Admin | Stop the node process gracefully |
+| `/start` | Welcome Overview | Admin | Rich welcome card: system diagnostics, live node status & quick actions |
+| `/start_node` | `optimai-cli node start` | Admin | Start the node process and Docker AI miner containers |
+| `/stop_node` (or `/stop`) | `optimai-cli node stop` | Admin | Stop the node and terminate all background mining workloads & Docker containers |
 | `/restart_node` | Stop + Start | Admin | Restart node & reset circuit breaker |
 | `/status` | `optimai-cli node status` | Admin | Live status: node uptime, Docker health, crash count |
 | `/screen` | Detached session | Admin | View 24/7 background worker session, PID & interactive buttons |

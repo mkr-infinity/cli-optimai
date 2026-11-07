@@ -12,7 +12,7 @@ FROM python:3.12-slim
 ARG DOCKER_CLI_VERSION=27.3.1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && apt-get install -y --no-install-recommends ca-certificates curl screen procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Download official OptimAI CLI binary into /usr/local/bin/optimai-cli.

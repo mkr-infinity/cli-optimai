@@ -30,6 +30,8 @@ import logging
 import os
 import signal
 import time
+import urllib.error
+import urllib.request
 from typing import Awaitable, Callable
 
 from .optimai import OptimaiCLI, contains_update_warning, tail_file
@@ -100,6 +102,8 @@ class Supervisor:
         self._restart_scheduled = False
         self._restart_task: asyncio.Task | None = None
         self._watch_task: asyncio.Task | None = None
+        self._internet_online = True
+        self._last_net_check = time.monotonic()
 
         # Latest platform health, refreshed by main.py (kept for /status).
         self._authenticated = False
@@ -264,9 +268,26 @@ class Supervisor:
         self._started_at = time.monotonic()
         log.info("Node process spawned (pid=%s)", proc.pid)
 
+    async def check_network_connectivity(self) -> bool:
+        """Lightweight connectivity check to verify outbound internet reachability."""
+        def _ping() -> bool:
+            try:
+                req = urllib.request.Request(
+                    "https://node.optimai.network",
+                    headers={"User-Agent": "OptimAI-Supervisor/1.3.0"},
+                )
+                with urllib.request.urlopen(req, timeout=5):
+                    return True
+            except urllib.error.HTTPError:
+                return True
+            except Exception:
+                return False
+
+        return await asyncio.to_thread(_ping)
+
     async def request_stop(self) -> None:
-        """PERSISTENT stop: desired=stopped FIRST, then SIGINT to the process
-        group (the CLI shuts down gracefully on Ctrl+C), 10 s wait, SIGKILL."""
+        """PERSISTENT stop: desired=stopped FIRST, signal node stop, SIGINT to the process
+        group (graceful shutdown), SIGKILL escalation, and terminate background mining containers."""
         self.desired = "stopped"
         self._save_desired()
 
@@ -276,32 +297,44 @@ class Supervisor:
             self._restart_task = None
         self._restart_scheduled = False
 
+        # 1. Gracefully notify official CLI to stop node
+        try:
+            await self.cli.node_stop()
+        except Exception as exc:
+            log.debug("optimai-cli node stop error: %s", exc)
+
         proc = self._proc
-        if proc is None or proc.returncode is not None:
-            return
-
-        try:
-            os.killpg(proc.pid, signal.SIGINT)
-        except ProcessLookupError:
-            pass
-
-        try:
-            await asyncio.wait_for(proc.wait(), timeout=STOP_GRACE_SECONDS)
-        except asyncio.TimeoutError:
-            log.warning("Node ignored SIGINT for %ss; escalating to SIGKILL", STOP_GRACE_SECONDS)
+        if proc is not None and proc.returncode is None:
             try:
-                os.killpg(proc.pid, signal.SIGKILL)
+                os.killpg(proc.pid, signal.SIGINT)
             except ProcessLookupError:
                 pass
-            try:
-                await asyncio.wait_for(proc.wait(), timeout=15)
-            except asyncio.TimeoutError:
-                log.error("Node process %s refused to die", proc.pid)
 
-        self._last_exit_code = proc.returncode
-        self._started_at = None
-        self._proc = None
-        log.info("Node process stopped (exit=%s)", self._last_exit_code)
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=STOP_GRACE_SECONDS)
+            except asyncio.TimeoutError:
+                log.warning("Node ignored SIGINT for %ss; escalating to SIGKILL", STOP_GRACE_SECONDS)
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=15)
+                except asyncio.TimeoutError:
+                    log.error("Node process %s refused to die", proc.pid)
+
+            self._last_exit_code = proc.returncode
+            self._started_at = None
+            self._proc = None
+            log.info("Node process stopped (exit=%s)", self._last_exit_code)
+
+        # 2. Stop any background Docker mining workloads/containers spawned by the node
+        try:
+            stopped = await self.cli.stop_mining_containers()
+            if stopped:
+                log.info("Stopped %d background Docker mining container(s)", stopped)
+        except Exception as exc:
+            log.debug("stop_mining_containers error: %s", exc)
 
     async def restart(self) -> int | None:
         await self.request_stop()
@@ -346,6 +379,21 @@ class Supervisor:
 
     async def _tick(self) -> None:
         proc = self._proc
+
+        now = time.monotonic()
+        if now - self._last_net_check >= 45.0:
+            self._last_net_check = now
+            online = await self.check_network_connectivity()
+            if not self._internet_online and online:
+                self._internet_online = True
+                await self._alert(
+                    "🌐 <b>Internet Restored!</b>\n"
+                    "Network connectivity to the OptimAI Network has been re-established. "
+                    "Mining node background workloads have resumed."
+                )
+            elif self._internet_online and not online:
+                self._internet_online = False
+                log.warning("Outbound network connectivity lost")
 
         # A run that stayed alive this long proves health -> reset counters.
         if (
