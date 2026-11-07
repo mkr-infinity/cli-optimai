@@ -267,7 +267,8 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/logs (or /log) — show latest node output\n"
         "/watch [seconds] — live-tail logs in chat (10-600s)\n\n"
         "<b>OptimAI Account (official CLI):</b>\n"
-        "/login [email password] — browser OAuth or email/password login\n"
+        "/login — browser login via Node Dashboard (optimai-cli auth login)\n"
+        "/login --legacy [email pwd] — legacy login via email & password (optimai-cli auth login --legacy)\n"
         "/auth_status (or /auth) — check OptimAI authentication status\n"
         "/me — view OptimAI CLI profile & Telegram account\n"
         "/logout — sign out from OptimAI account\n"
@@ -582,21 +583,46 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await _reply(update, "✅ Already authenticated. Use /auth_status for details.")
         return
 
-    # Direct arguments handling:
-    # 1) /login oauth (or 1) -> launch Method 1 directly
-    # 2) /login email (or 2) -> launch Method 2 direct intake prompt
-    # 3) /login <email> <password> -> execute Method 2 direct authentication
+    # Direct arguments handling matching official CLI:
+    # 1) /login --legacy <email> <password> or /login <email> <password> -> Legacy Login
+    # 2) /login --legacy (or /login legacy) -> prompt for Legacy Login credentials
+    # 3) /login browser (or oauth) -> launch Browser Login directly
     if context.args:
-        first = context.args[0].lower().strip()
-        if len(context.args) == 1 and first in ("oauth", "1", "browser"):
+        args = list(context.args)
+        is_legacy = False
+        if args[0].lower() in ("--legacy", "-legacy", "legacy"):
+            is_legacy = True
+            args.pop(0)
+
+        if is_legacy:
+            if len(args) >= 2:
+                email = args[0]
+                password = args[1]
+                await _execute_email_password_login(update, context, email, password)
+                return
+            context.user_data["awaiting_credentials_until"] = time.monotonic() + 180
+            pwd_text = (
+                "📧 <b>Legacy Login (optimai-cli auth login --legacy)</b>\n\n"
+                "If you prefer to use email/password instead of browser login:\n\n"
+                "1. <b>Reply directly in this chat</b> with:\n"
+                "<code>your_email@example.com your_password</code>\n\n"
+                "2. Or send the command:\n"
+                "<code>/login --legacy your_email@example.com your_password</code>\n\n"
+                "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
+            )
+            await _reply(update, pwd_text)
+            return
+
+        if len(args) == 1 and args[0].lower() in ("browser", "oauth", "dashboard", "1"):
             url = await login.start()
             if not url:
-                await _reply(update, "❌ Could not start OAuth login flow. Try again or use Method 2 (Email & Password).")
+                await _reply(update, "❌ Could not start browser login flow. Try again or use /login --legacy.")
                 return
             oauth_text = (
-                "🌐 <b>Method 1: Browser OAuth Key Login</b>\n\n"
-                "1. Tap <b>Open Login Page</b> below to sign in on your browser.\n"
-                "2. After signing in, copy the authorization key or the full redirect URL.\n"
+                "🌐 <b>Browser Login (optimai-cli auth login)</b>\n\n"
+                "This will open your browser to sign in via the OptimAI Node Dashboard:\n\n"
+                "1. Tap <b>Open Login Page</b> below to sign in.\n"
+                "2. After signing in, copy the authorization key or redirect URL.\n"
                 "3. <b>Paste the key or URL directly here</b> in this chat.\n\n"
                 "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
             )
@@ -607,43 +633,31 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await _reply(update, oauth_text, oauth_kbd)
             return
 
-        if len(context.args) == 1 and first in ("email", "2", "password", "direct"):
-            context.user_data["awaiting_credentials_until"] = time.monotonic() + 180
-            pwd_text = (
-                "📧 <b>Method 2: Direct Email & Password Login</b>\n\n"
-                "Please enter your OptimAI account credentials.\n\n"
-                "You can reply directly in this chat with:\n"
-                "<code>your_email@example.com your_password</code>\n\n"
-                "Or send:\n"
-                "<code>/login your_email@example.com your_password</code>\n\n"
-                "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
-            )
-            await _reply(update, pwd_text)
-            return
-
-        if len(context.args) >= 2:
-            email = context.args[0]
-            password = context.args[1]
+        if len(args) >= 2:
+            email = args[0]
+            password = args[1]
             await _execute_email_password_login(update, context, email, password)
             return
 
     # No arguments: present the two official login methods
     text = (
         "🔑 <b>OptimAI Account Authentication</b>\n\n"
-        "Choose your preferred login method to connect this node to your OptimAI account:\n\n"
-        "🌐 <b>Method 1: Browser OAuth Key / Link (Recommended)</b>\n"
-        "Tap below to generate a login link. Sign in on your browser, copy the authorization key / redirect code, and paste it here within 3 minutes.\n\n"
-        "📧 <b>Method 2: Direct Email & Password</b>\n"
-        "Authenticate directly with your account credentials by sending:\n"
-        "<code>/login your_email@example.com your_password</code>\n\n"
+        "Choose your preferred sign-in method to connect this node to your OptimAI account:\n\n"
+        "🌐 <b>1) Browser Login (default):</b>\n"
+        "<code>optimai-cli auth login</code>\n"
+        "Sign in via the OptimAI Node Dashboard in your browser, then paste the redirect URL or key here within 3 minutes.\n\n"
+        "📧 <b>2) Legacy Login (email/password):</b>\n"
+        "<code>optimai-cli auth login --legacy</code>\n"
+        "If you prefer to use email/password instead of browser login:\n"
+        "<code>/login --legacy your_email@example.com your_password</code>\n\n"
         "<i>Need an account? Tap Register below.</i>"
     )
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🌐 Method 1: Browser OAuth Key", callback_data="login_method_oauth"),
+            InlineKeyboardButton("🌐 Browser Login (auth login)", callback_data="login_method_browser"),
         ],
         [
-            InlineKeyboardButton("📧 Method 2: Email & Password", callback_data="login_method_password"),
+            InlineKeyboardButton("📧 Legacy Login (auth login --legacy)", callback_data="login_method_legacy"),
         ],
         [
             InlineKeyboardButton("✨ Register (Ref: 646D12E7)", url="https://node.optimai.network/register?ref=646D12E7"),
@@ -926,17 +940,18 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         else:
             await _reply(update, text, keyboard)
-    elif data == "login_method_oauth":
+    elif data in ("login_method_browser", "login_method_oauth"):
         url = await _login.start()
         if not url:
             if query.message:
-                await query.message.reply_text("❌ Could not start login flow (no URL captured from CLI). Try again or use Method 2.")
+                await query.message.reply_text("❌ Could not start login flow (no URL captured from CLI). Try again or use /login --legacy.")
             return
         oauth_text = (
-            "🌐 <b>Method 1: Browser OAuth Key Login</b>\n\n"
-            "1. Tap <b>Open Login Page</b> below to sign in on your browser.\n"
-            "2. After signing in, copy the authorization key or the full redirect URL.\n"
-            "3. <b>Paste the key or URL directly here</b> in this chat.\n\n"
+            "🌐 <b>Browser Login (optimai-cli auth login)</b>\n\n"
+            "This will open your browser to sign in via the OptimAI Node Dashboard:\n\n"
+            "1. Tap <b>Open Login Page</b> below.\n"
+            "2. Sign in via the OptimAI Node Dashboard.\n"
+            "3. Copy the authorization key or redirect URL and <b>paste it directly here</b>.\n\n"
             "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
         )
         oauth_kbd = InlineKeyboardMarkup([
@@ -945,16 +960,15 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         ])
         if query.message:
             await query.message.reply_text(oauth_text, reply_markup=oauth_kbd, parse_mode=ParseMode.HTML)
-    elif data == "login_method_password":
+    elif data in ("login_method_legacy", "login_method_password"):
         context.user_data["awaiting_credentials_until"] = time.monotonic() + 180
         pwd_text = (
-            "📧 <b>Method 2: Direct Email & Password Login</b>\n\n"
-            "Please provide your registered OptimAI email and password.\n\n"
-            "You can:\n"
+            "📧 <b>Legacy Login (optimai-cli auth login --legacy)</b>\n\n"
+            "If you prefer to use email/password instead of browser login:\n\n"
             "1. <b>Reply directly in this chat</b> with:\n"
             "<code>your_email@example.com your_password</code>\n\n"
             "2. Or send the command:\n"
-            "<code>/login your_email@example.com your_password</code>\n\n"
+            "<code>/login --legacy your_email@example.com your_password</code>\n\n"
             "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
         )
         if query.message:
@@ -1108,10 +1122,12 @@ async def on_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     text = message.text.strip()
     awaiting_creds = context.user_data.get("awaiting_credentials_until", 0) > time.monotonic()
     parts = text.split()
+    if parts and parts[0].lower() in ("--legacy", "-legacy", "legacy"):
+        parts.pop(0)
     looks_like_creds = len(parts) >= 2 and "@" in parts[0]
 
-    # Handle Method 2: Direct email & password entered in chat
-    if awaiting_creds or (looks_like_creds and not login.has_pending):
+    # Handle Legacy Login: Direct email & password entered in chat
+    if (awaiting_creds and len(parts) >= 2) or (looks_like_creds and not login.has_pending):
         email = parts[0]
         password = " ".join(parts[1:])
         await _execute_email_password_login(update, context, email, password)

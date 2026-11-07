@@ -108,11 +108,11 @@ try {
             Write-Host "`n======================================================================" -ForegroundColor Cyan
             Write-Host "  🔑 OPTIMAI ACCOUNT LOGIN (Optional — Auto-timeout: 3 minutes)" -ForegroundColor Cyan
             Write-Host "======================================================================" -ForegroundColor Cyan
-            Write-Host "  Choose your login method to connect this node to your OptimAI account:`n"
-            Write-Host "  1) Browser OAuth / Authorization Key (Recommended)" -ForegroundColor White
-            Write-Host "     Open link in browser, sign in, and paste the authorization key/code.`n"
-            Write-Host "  2) Direct Email & Password" -ForegroundColor White
-            Write-Host "     Sign in directly with your registered OptimAI email and password.`n"
+            Write-Host "  Choose your sign-in method to connect this node to your OptimAI account:`n"
+            Write-Host "  1) Browser Login: optimai-cli auth login (Recommended)" -ForegroundColor White
+            Write-Host "     Sign in via the OptimAI Node Dashboard in your browser and complete login.`n"
+            Write-Host "  2) Legacy Login (email/password): optimai-cli auth login --legacy" -ForegroundColor White
+            Write-Host "     If you prefer to use email/password instead of browser login.`n"
             Write-Host "  [Enter 1 or 2, or press Enter to skip / 180s timeout]: " -NoNewline
 
             $methodChoice = ""
@@ -130,24 +130,24 @@ try {
             $methodChoice = $methodChoice.Trim()
 
             if ($methodChoice -eq "1") {
-                Write-Host "`n==> Launching official browser OAuth login flow..." -ForegroundColor Green
+                Write-Host "`n==> Launching Browser Login (optimai-cli auth login)..." -ForegroundColor Green
                 & $optimaiExe auth login --no-open --paste
                 Write-Host "`n[✓] Login flow complete.`n" -ForegroundColor Green
             } elseif ($methodChoice -eq "2") {
-                Write-Host "`n==> Direct Email & Password Login:" -ForegroundColor Green
+                Write-Host "`n==> Legacy Login (optimai-cli auth login --legacy):" -ForegroundColor Green
                 Write-Host "  Enter your OptimAI email: " -NoNewline
                 $emailInput = [Console]::ReadLine()
                 Write-Host "  Enter your OptimAI password: " -NoNewline
                 $pwdInput = [Console]::ReadLine()
                 if ($emailInput -and $pwdInput) {
-                    "$emailInput`n$pwdInput" | & $optimaiExe auth login
-                    Write-Host "`n[✓] Direct login submitted.`n" -ForegroundColor Green
+                    "$emailInput`n$pwdInput" | & $optimaiExe auth login --legacy
+                    Write-Host "`n[✓] Legacy login submitted.`n" -ForegroundColor Green
                 } else {
                     Write-Host "`n[!] Email or password empty. Login skipped.`n" -ForegroundColor Yellow
                 }
             } else {
                 Write-Host "`n[!] Account login skipped or timed out." -ForegroundColor Yellow
-                Write-Host "    You can log in at any time from Telegram (/login) or terminal.`n"
+                Write-Host "    You can sign in at any time from Telegram (/login or /login --legacy) or terminal.`n"
             }
         }
     }

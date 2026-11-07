@@ -89,7 +89,7 @@ All commands directly interface with the official upstream `optimai-cli`:
 | Command | Upstream CLI Command | Access | Description |
 |---|---|---|---|
 | `/start` | Welcome Overview | Admin | Live system diagnostics, node status, and quick buttons |
-| `/login [email pwd]` | `optimai-cli auth login` | Admin | Authenticate via browser OAuth URL or email/password |
+| `/login [--legacy] [email pwd]` | `optimai-cli auth login [--legacy]` | Admin | Browser login (default) or legacy email/password sign-in |
 | `/logout` | `optimai-cli auth logout` | Admin | Sign out and purge local stored credentials |
 | `/auth_status` | `optimai-cli auth status` | Admin | Check live OptimAI account connection status |
 | `/me` | `optimai-cli auth me` | Admin | View authenticated OptimAI profile and node details |
@@ -138,13 +138,15 @@ make logs
 
 | Issue | Cause | Solution |
 |---|---|---|
-| `Not authenticated` | Session expired or first run | Send `/login` to sign in via browser or credentials |
+| `Not authenticated` / Browser login not working | Dashboard unsupported or session expired | Send `/login --legacy <email> <password>` or run `optimai-cli auth login --legacy` |
+| `Docker not running` / `no Docker daemon here` | Docker service inactive or unmounted | Ensure Docker Desktop is running before starting the node, then retry `/start_node` |
+| `Another node instance is already running` | Existing background node process | Check PID with `/status` or `/screen` and send `/restart_node` (or `kill <PID>`) |
+| `Important OptimAI CLI update available` | Complete CLI app replacement required | Send `/update_cli` in Telegram to automatically reinstall the complete CLI binary |
 | Bot not responding | Invalid bot token or network offline | Verify `TELEGRAM_BOT_TOKEN` in `.env` and run `make logs` |
-| `no Docker daemon here` | Host Docker socket unmounted | Ensure Docker is active or deploy on a standard Linux VPS |
 | Node stopped unexpectedly | Circuit breaker opened (5 crashes) | Check error in `/logs`, resolve, then send `/restart_node` |
-| CLI update warning in `/status` | Upstream CLI release available | Send `/update_cli` in Telegram to auto-update |
 
 > [!NOTE]
+> On Windows PowerShell / Command Prompt, use `.\optimai-cli.exe` if the executable is not in your system `PATH`.
 > For step-by-step incident response, circuit breaker recovery, and log inspection, see the **[Troubleshooting Runbook](docs/RUNBOOK.md)**.
 
 ---

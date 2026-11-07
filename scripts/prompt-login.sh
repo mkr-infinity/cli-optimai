@@ -38,23 +38,23 @@ prompt_account_login() {
   printf "\n\033[1m======================================================================\033[0m\n"
   printf "\033[1;36m  🔑 OPTIMAI ACCOUNT LOGIN (Optional — Auto-timeout: 3 minutes)\033[0m\n"
   printf "\033[1m======================================================================\033[0m\n"
-  printf "  Choose your login method to connect this node to your OptimAI account:\n\n"
-  printf "  \033[1m1) Browser OAuth / Authorization Key (Recommended)\033[0m\n"
-  printf "     Open link in browser, sign in, and paste the authorization key/code.\n\n"
-  printf "  \033[1m2) Direct Email & Password\033[0m\n"
-  printf "     Sign in directly with your registered OptimAI email and password.\n\n"
+  printf "  Choose your sign-in method to connect this node to your OptimAI account:\n\n"
+  printf "  \033[1m1) Browser Login: optimai-cli auth login (Recommended)\033[0m\n"
+  printf "     Sign in via the OptimAI Node Dashboard in your browser and complete login.\n\n"
+  printf "  \033[1m2) Legacy Login (email/password): optimai-cli auth login --legacy\033[0m\n"
+  printf "     If you prefer to use email/password instead of browser login.\n\n"
   printf "  [Enter 1 or 2, or press Enter to skip / 180s timeout]: "
 
   read -r -t 180 METHOD_CHOICE || METHOD_CHOICE=""
   METHOD_CHOICE="$(echo "$METHOD_CHOICE" | tr -d '[:space:]')"
 
   if [ "$METHOD_CHOICE" = "1" ]; then
-    printf "\n\033[1;32m==>\033[0m Launching official browser OAuth login flow...\n"
+    printf "\n\033[1;32m==>\033[0m Launching Browser Login (optimai-cli auth login)...\n"
     "$CLI_BIN" auth login --no-open --paste || true
     printf "\n\033[1;32m[✓]\033[0m Login flow complete. Check status anytime with: %s auth status\n\n" "$CLI_BIN"
 
   elif [ "$METHOD_CHOICE" = "2" ]; then
-    printf "\n\033[1;32m==>\033[0m Direct Email & Password Login:\n"
+    printf "\n\033[1;32m==>\033[0m Legacy Login (optimai-cli auth login --legacy):\n"
     printf "  Enter your OptimAI email: "
     read -r -t 180 EMAIL_INPUT || EMAIL_INPUT=""
     EMAIL_INPUT="$(echo "$EMAIL_INPUT" | tr -d '[:space:]')"
@@ -64,17 +64,18 @@ prompt_account_login() {
     printf "\n"
 
     if [ -n "$EMAIL_INPUT" ] && [ -n "$PWD_INPUT" ]; then
-      printf "  Authenticating with OptimAI Network...\n"
-      printf "%s\n%s\n" "$EMAIL_INPUT" "$PWD_INPUT" | "$CLI_BIN" auth login 2>/dev/null || true
-      printf "\n\033[1;32m[✓]\033[0m Direct login submitted. Verification: %s auth status\n\n" "$CLI_BIN"
+      printf "  Authenticating with OptimAI Network (legacy login)...\n"
+      printf "%s\n%s\n" "$EMAIL_INPUT" "$PWD_INPUT" | "$CLI_BIN" auth login --legacy 2>/dev/null || true
+      printf "\n\033[1;32m[✓]\033[0m Legacy login submitted. Verification: %s auth status\n\n" "$CLI_BIN"
     else
       printf "\n\033[1;33m[!] Email or password empty. Login skipped.\033[0m\n\n"
     fi
 
   else
     printf "\n\033[1;33m[!] Account login skipped or timed out.\033[0m\n"
-    printf "    You can log in at any time:\n"
-    printf "    • From Telegram Bot: send \033[1;36m/login\033[0m in Telegram\n"
-    printf "    • From Terminal:     run \033[1;36moptimai-cli auth login\033[0m\n\n"
+    printf "    You can sign in at any time:\n"
+    printf "    • From Telegram Bot: send \033[1;36m/login\033[0m or \033[1;36m/login --legacy\033[0m\n"
+    printf "    • Browser Login:     run \033[1;36moptimai-cli auth login\033[0m\n"
+    printf "    • Legacy Login:      run \033[1;36moptimai-cli auth login --legacy\033[0m\n\n"
   fi
 }
