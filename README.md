@@ -69,7 +69,7 @@ Copy and paste this command block into your server:
 # 1. Clone this repository
 git clone https://github.com/mkr-infinity/optimai-cli.git && cd optimai-cli
 
-# 2. Run one-shot preparation (installs Docker Engine & sets up 2GB swap)
+# 2. Check compatibility & prepare host (supports Arch, Debian, Ubuntu, Fedora, Alpine, etc.)
 sudo bash setup-vps.sh
 
 # 3. Create your configuration

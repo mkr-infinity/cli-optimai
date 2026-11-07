@@ -59,6 +59,11 @@ from bot.config import (  # noqa: E402
     is_local_environment,
     load_dotenv,
 )
+from bot.compatibility import (  # noqa: E402
+    check_device_compatibility,
+    get_compatible_cli_url,
+    get_os_info,
+)
 from bot.gatekeeper import UnauthorizedGate  # noqa: E402
 from bot.login_session import LoginManager, LoginSession  # noqa: E402
 from bot.optimai import (  # noqa: E402
@@ -195,6 +200,33 @@ check(
     "config: local auto-detect safely overrides /data to writable local paths",
     not local_cfg.data_dir.startswith("/data/data") or os.access("/data", os.W_OK),
 )
+
+# ======================================================================
+print("\n== compatibility ==")
+# ======================================================================
+host_compat, host_msg, host_details = check_device_compatibility()
+check("compat: get_os_info returns valid system and machine", bool(get_os_info().get("system")))
+check("compat: check_device_compatibility returns tuple", isinstance(host_compat, bool) and isinstance(host_msg, str))
+
+c_l64, m_l64, d_l64 = check_device_compatibility({"system": "Linux", "machine": "x86_64", "distro_name": "Arch Linux"})
+check("compat: Linux x86_64 compatible with ubuntu binary url", c_l64 and "optimai_cli_ubuntu" in d_l64["cli_url"])
+
+c_mac, m_mac, d_mac = check_device_compatibility({"system": "Darwin", "machine": "arm64", "distro_name": "macOS 14"})
+check("compat: macOS arm64 compatible with universal binary url", c_mac and "optimai_cli_darwin_universal2" in d_mac["cli_url"])
+
+c_win, m_win, d_win = check_device_compatibility({"system": "Windows", "machine": "amd64", "distro_name": "Windows 11"})
+check("compat: Windows x86_64 compatible with exe url", c_win and "optimai_cli_windows.exe" in d_win["cli_url"])
+
+c_arm, m_arm, d_arm = check_device_compatibility({"system": "Linux", "machine": "aarch64", "distro_name": "Ubuntu 22.04"})
+check("compat: Linux aarch64 reports incompatible with reason", not c_arm and "ARM" in m_arm)
+
+c_32, m_32, d_32 = check_device_compatibility({"system": "Linux", "machine": "i686", "distro_name": "Debian"})
+check("compat: 32-bit Linux reports incompatible with reason", not c_32 and "32-bit" in m_32)
+
+check("compat: RAM and storage limits are NOT enforced (advisory only)", "ram_mb" in d_l64 and "disk_free_gb" in d_l64 and c_l64)
+
+p_compat = subprocess.run(["bash", os.path.join(ROOT, "scripts", "check-compatibility.sh")], capture_output=True, text=True)
+check("compat: scripts/check-compatibility.sh runs and returns compatible output", p_compat.returncode == 0 and "COMPATIBLE" in p_compat.stdout)
 
 # ======================================================================
 print("\n== gatekeeper ==")

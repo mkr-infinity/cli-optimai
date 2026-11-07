@@ -11,7 +11,10 @@
 - Auto-detection for local machines: zero-config `.env` loading, binary location discovery (`/usr/local/bin`, `~/.local/bin`, Windows Program Files), host `~/.optimai` reuse, and protected gitignore rules.
 - OptimAI referral link (`https://node.optimai.network/register?ref=646D12E7`) integrated across Telegram inline buttons and guides.
 - Streamlined 5-step beginner setup guide and visual cheatsheet in `README.md`.
-- Expanded smoke test coverage to 112 automated checks.
+- Multi-distribution compatibility engine (`bot/compatibility.py` and `scripts/check-compatibility.sh`) detecting Arch Linux, EndeavourOS, Debian, Ubuntu, Fedora, openSUSE, Alpine, macOS, and Windows.
+- Intelligent package manager detection across `pacman`, `apt`, `dnf`, `zypper`, and `apk` in `setup-vps.sh`.
+- Explicit OS & architecture preflight validation with detailed explanatory failure messages; RAM and storage checks are strictly advisory and never forced.
+- Expanded smoke test coverage to 121 automated checks.
 
 ## v1.1.0 — 2026-11-07
 
