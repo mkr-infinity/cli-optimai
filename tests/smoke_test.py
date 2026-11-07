@@ -282,6 +282,44 @@ check("launcher: start.sh launcher script exists and is executable", os.path.isf
 check("installer: universal setup.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "setup.sh")) and os.access(os.path.join(ROOT, "setup.sh"), os.X_OK))
 check("codespaces: setup-codespaces.sh and .devcontainer/devcontainer.json exist", os.path.isfile(os.path.join(ROOT, "setup-codespaces.sh")) and os.access(os.path.join(ROOT, "setup-codespaces.sh"), os.X_OK) and os.path.isfile(os.path.join(ROOT, ".devcontainer", "devcontainer.json")))
 check("windows: setup-windows.ps1 and start.bat exist", os.path.isfile(os.path.join(ROOT, "setup-windows.ps1")) and os.path.isfile(os.path.join(ROOT, "start.bat")))
+check("prompt: scripts/prompt-env.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-env.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-env.sh"), os.X_OK))
+
+# Test interactive env prompt intake with piped values
+test_env_path = os.path.join(TMP, "test_interactive.env")
+with open(test_env_path, "w", encoding="utf-8") as f:
+    f.write("TELEGRAM_BOT_TOKEN=\nTELEGRAM_ALLOWED_IDS=\n")
+
+p_prompt = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-env.sh")} && printf "999888:ABC\\n554433\\n" | prompt_telegram_credentials "{test_env_path}" .env.example "echo AUTORUN_OK"'],
+    cwd=ROOT,
+    capture_output=True,
+    text=True,
+)
+with open(test_env_path, encoding="utf-8") as f:
+    test_env_content = f.read()
+check(
+    "prompt: scripts/prompt-env.sh writes credentials and triggers autorun",
+    p_prompt.returncode == 0 and "AUTORUN_OK" in p_prompt.stdout and "TELEGRAM_BOT_TOKEN=999888:ABC" in test_env_content and "TELEGRAM_ALLOWED_IDS=554433" in test_env_content,
+    f"out={p_prompt.stdout}, content={test_env_content}",
+)
+
+# Test skip behavior on empty input
+with open(test_env_path, "w", encoding="utf-8") as f:
+    f.write("TELEGRAM_BOT_TOKEN=\nTELEGRAM_ALLOWED_IDS=\n")
+
+p_skip = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-env.sh")} && printf "\\n\\n" | prompt_telegram_credentials "{test_env_path}" .env.example "echo AUTORUN_OK"'],
+    cwd=ROOT,
+    capture_output=True,
+    text=True,
+)
+with open(test_env_path, encoding="utf-8") as f:
+    test_skip_content = f.read()
+check(
+    "prompt: scripts/prompt-env.sh skips cleanly when user presses Enter",
+    p_skip.returncode == 0 and "AUTORUN_OK" not in p_skip.stdout and "skipped or timed out" in p_skip.stdout and test_skip_content == "TELEGRAM_BOT_TOKEN=\nTELEGRAM_ALLOWED_IDS=\n",
+    f"out={p_skip.stdout}, content={test_skip_content}",
+)
 for core_doc in ("DEPLOY-VPS.md", "DEPLOY-GCP.md", "DEPLOY-TERMUX.md", "RUNBOOK.md"):
     check(f"docs: core guide docs/{core_doc} exists", os.path.isfile(os.path.join(ROOT, "docs", core_doc)))
 

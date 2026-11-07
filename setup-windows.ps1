@@ -91,10 +91,120 @@ if (!(Test-Path $envFile) -and (Test-Path $envExample)) {
     Write-Tick "Configuration File" ".env file ready"
 }
 
-Write-Host "`n======================================================================" -ForegroundColor Cyan
-Write-Host "  🎉 Windows Setup Complete! Node is Ready to Run!" -ForegroundColor Green
-Write-Host "======================================================================" -ForegroundColor Cyan
-Write-Host "  1. Enter your Telegram credentials:  notepad .env" -ForegroundColor Yellow
-Write-Host "  2. Start Bot and AI Miner together:  .\start.bat" -ForegroundColor Green
-Write-Host "  3. Telegram Bot Control:             Send /start in Telegram" -ForegroundColor White
-Write-Host "======================================================================`n"
+# 6. Interactive Credentials Intake (60s Auto-Timeout)
+$configured = $false
+$tokenVal = ""
+$idsVal = ""
+
+try {
+    if ([Environment]::UserInteractive) {
+        $hasExisting = $false
+        if (Test-Path $envFile) {
+            $envContent = Get-Content $envFile -Raw
+            if ($envContent -match "TELEGRAM_BOT_TOKEN=\d+" -and $envContent -match "TELEGRAM_ALLOWED_IDS=\d+") {
+                $hasExisting = $true
+                Write-Host "`n  [✓] Active Telegram credentials detected in .env." -ForegroundColor Green
+                Write-Host "      Press Enter to keep current credentials, or enter 'r' within 60s to reconfigure: " -NoNewline
+                $reconfig = ""
+                $reconfigTimer = [System.Diagnostics.Stopwatch]::StartNew()
+                while ($reconfigTimer.Elapsed.TotalSeconds -lt 60) {
+                    if ([Console]::KeyAvailable) {
+                        $key = [Console]::ReadKey($true)
+                        if ($key.Key -eq [ConsoleKey]::Enter) { break }
+                        $reconfig += $key.KeyChar
+                        Write-Host $key.KeyChar -NoNewline
+                    }
+                    Start-Sleep -Milliseconds 50
+                }
+                Write-Host ""
+                if ($reconfig -notmatch "^[rR]") {
+                    $configured = $true
+                }
+            }
+        }
+
+        if (-not $configured) {
+            Write-Host "`n======================================================================" -ForegroundColor Cyan
+            Write-Host "  🤖 TELEGRAM CREDENTIALS CONFIGURATION (Auto-timeout: 60 seconds)" -ForegroundColor Cyan
+            Write-Host "======================================================================" -ForegroundColor Cyan
+            Write-Host "  Enter your credentials below, or press Enter to skip and configure later.`n"
+
+            function Get-InputWithTimeout($promptText, $timeoutSec = 60) {
+                Write-Host "$promptText " -NoNewline
+                $result = ""
+                $timer = [System.Diagnostics.Stopwatch]::StartNew()
+                while ($timer.Elapsed.TotalSeconds -lt $timeoutSec) {
+                    if ([Console]::KeyAvailable) {
+                        $key = [Console]::ReadKey($true)
+                        if ($key.Key -eq [ConsoleKey]::Enter) {
+                            Write-Host ""
+                            return $result.Trim()
+                        } elseif ($key.Key -eq [ConsoleKey]::Backspace) {
+                            if ($result.Length -gt 0) {
+                                $result = $result.Substring(0, $result.Length - 1)
+                                Write-Host "`b `b" -NoNewline
+                            }
+                        } else {
+                            $result += $key.KeyChar
+                            Write-Host $key.KeyChar -NoNewline
+                        }
+                    }
+                    Start-Sleep -Milliseconds 50
+                }
+                Write-Host "`n[Timeout reached (60s)]"
+                return ""
+            }
+
+            $tokenVal = Get-InputWithTimeout "  1. Enter your TELEGRAM_BOT_TOKEN (from @BotFather):" 60
+            $idsVal = Get-InputWithTimeout "  2. Enter your TELEGRAM_ALLOWED_IDS (numeric ID from @userinfobot):" 60
+
+            if ($tokenVal -ne "" -and $idsVal -ne "") {
+                $content = Get-Content $envFile
+                $newContent = @()
+                $hasToken = $false
+                $hasIds = $false
+                $hasAutoStart = $false
+                foreach ($line in $content) {
+                    if ($line -match "^TELEGRAM_BOT_TOKEN=") {
+                        $newContent += "TELEGRAM_BOT_TOKEN=$tokenVal"
+                        $hasToken = $true
+                    } elseif ($line -match "^TELEGRAM_ALLOWED_IDS=") {
+                        $newContent += "TELEGRAM_ALLOWED_IDS=$idsVal"
+                        $hasIds = $true
+                    } elseif ($line -match "^NODE_AUTO_START=") {
+                        $newContent += "NODE_AUTO_START=true"
+                        $hasAutoStart = $true
+                    } else {
+                        $newContent += $line
+                    }
+                }
+                if (-not $hasToken) { $newContent += "TELEGRAM_BOT_TOKEN=$tokenVal" }
+                if (-not $hasIds) { $newContent += "TELEGRAM_ALLOWED_IDS=$idsVal" }
+                if (-not $hasAutoStart) { $newContent += "NODE_AUTO_START=true" }
+                Set-Content -Path $envFile -Value $newContent
+                Write-Host "`n  [✓] Telegram credentials successfully configured in .env!" -ForegroundColor Green
+                $configured = $true
+            } else {
+                Write-Host "`n  [!] Credentials setup skipped or timed out." -ForegroundColor Yellow
+                Write-Host "      Please edit .env manually before starting: notepad .env`n"
+            }
+        }
+    }
+} catch {
+    Write-Warn "Credentials Intake" "Non-interactive environment detected. Skipping prompt."
+}
+
+if ($configured) {
+    Write-Host "`n======================================================================" -ForegroundColor Cyan
+    Write-Host "  🚀 Credentials Configured! Starting OptimAI Bot & AI Miner..." -ForegroundColor Green
+    Write-Host "======================================================================" -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot "start.bat")
+} else {
+    Write-Host "`n======================================================================" -ForegroundColor Cyan
+    Write-Host "  🎉 Windows Setup Complete! Node is Ready to Run!" -ForegroundColor Green
+    Write-Host "======================================================================" -ForegroundColor Cyan
+    Write-Host "  1. Enter your Telegram credentials:  notepad .env" -ForegroundColor Yellow
+    Write-Host "  2. Start Bot and AI Miner together:  .\start.bat" -ForegroundColor Green
+    Write-Host "  3. Telegram Bot Control:             Send /start in Telegram" -ForegroundColor White
+    Write-Host "======================================================================`n"
+}

@@ -39,11 +39,19 @@ Autonomous 24/7 supervisor and Telegram management bot for the official OptimAI 
 git clone https://github.com/mkr-infinity/optimai-cli.git && cd optimai-cli
 bash setup.sh
 ```
-> [!NOTE]
-> `bash setup.sh` automatically detects your environment (GitHub Codespaces, Android Termux, Linux VPS, macOS, or Windows) and provisions the required packages, downloads and primes the official OptimAI CLI, and creates `.env`.
 
-### 2. Configure Telegram Credentials
-Edit `.env` with your editor of choice (`nano .env` or `notepad .env`):
+> [!NOTE]
+> `bash setup.sh` automatically detects your platform (GitHub Codespaces, Android Termux, Linux VPS, macOS, or Windows), installs required system packages, downloads and primes the official OptimAI CLI binary, and configures `.env`.
+
+> [!TIP]
+> **Interactive Credentials Intake (60s Timeout):** During setup, the installer prompts you to input your `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_IDS`. If entered, the bot and AI miner auto-launch immediately! If skipped (by pressing Enter or waiting 60s), you can manually enter them in `.env`.
+
+> [!IMPORTANT]
+> **Mining directly on an Android smartphone or tablet?**  
+> Refer to the dedicated **[Android Termux 24/7 Mobile Mining Guide](docs/DEPLOY-TERMUX.md)** for battery management, wake lock setup, and on-device ARM64 PRoot emulation.
+
+### 2. Configure Telegram Credentials (If Skipped)
+If you skipped interactive setup, edit `.env` with your editor of choice (`nano .env` or `notepad .env`):
 * `TELEGRAM_BOT_TOKEN`: Token obtained from [@BotFather](https://t.me/BotFather).
 * `TELEGRAM_ALLOWED_IDS`: Your numeric Telegram ID (obtain via [@userinfobot](https://t.me/userinfobot) or send `/id` to the bot).
 
@@ -138,14 +146,20 @@ make logs
 
 ---
 
-## 📚 Essential Guides & Project Links
+## 📚 Complete Guides & Documentation Directory
 
-* **[Android Termux Guide](docs/DEPLOY-TERMUX.md)** — Run 24/7 on an Android phone with wake lock & ARM64 PRoot emulation.
-* **[VPS Deployment Guide](docs/DEPLOY-VPS.md)** — Multi-distro server setup on Debian, Ubuntu, Arch, and Fedora.
-* **[Google Cloud Guide](docs/DEPLOY-GCP.md)** — Compute Engine VM setup and trial policy precautions.
-* **[Troubleshooting Runbook](docs/RUNBOOK.md)** — Recovery playbooks and diagnostic procedures.
-* **[Contributing Guide](CONTRIBUTING.md)** — Developer workflow, smoke tests, and PR guidelines.
-* **[Product Roadmap](ROADMAP.md)** — Feature milestones and delivery ledger.
+Every deployment target, triage runbook, and project governance policy has a dedicated guide:
+
+| Guide / Manual | Purpose & Target Audience | Link |
+|---|---|---|
+| 📱 **Android Termux 24/7 Mobile Mining** | Complete guide for running on Android devices, acquiring CPU wake-lock, and bridging ARM64 via PRoot emulation | [docs/DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md) |
+| ☁️ **Multi-Distro VPS Deployment** | Production setup on Ubuntu, Debian, Arch Linux, Fedora, CentOS, openSUSE, and Alpine hosts | [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) |
+| 🌐 **Google Cloud Compute Engine (GCP)** | GCP VM deployment guide with Acceptable Use Policy compliance and billing safeguards | [docs/DEPLOY-GCP.md](docs/DEPLOY-GCP.md) |
+| 🛠️ **Operational Runbook & Triage** | Crash diagnosis, circuit breaker recovery, container triage, log inspection, and system health restoration | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
+| 🤝 **Contributing & Development** | Developer setup, running the 150+ smoke test suite, code guidelines, and pull request procedures | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 🔒 **Security Policy & Reporting** | Responsible vulnerability disclosure, encrypted reporting channels, and security boundaries | [SECURITY.md](SECURITY.md) |
+| 🗺️ **Milestones & Strategic Roadmap** | Product milestones ledger, release history, and planned supervisor capabilities | [ROADMAP.md](ROADMAP.md) |
+| 📝 **Version Changelog** | Complete release notes, architectural enhancements, and bug fix ledger | [CHANGELOG.md](CHANGELOG.md) |
 
 ---
 
