@@ -85,7 +85,7 @@ In the Google Cloud SSH terminal window, paste:
 # 1. Clone this repository
 git clone https://github.com/mkr-infinity/optimai-cli.git && cd optimai-cli
 
-# 2. Check compatibility & prepare host (supports Ubuntu, Debian, Arch, Fedora, etc.)
+# 2. Complete setup & install all miner requirements (Docker, Compose, screen, Python, official CLI binary & pre-flight checker)
 sudo bash setup-vps.sh
 
 # 3. Create your configuration
@@ -98,6 +98,9 @@ TELEGRAM_BOT_TOKEN=123456789:ABCdefGhI...
 TELEGRAM_ALLOWED_IDS=123456789
 ```
 *(Press `Ctrl + O` then `Enter` to save, and `Ctrl + X` to exit).*
+
+> [!TIP]
+> **Pre-Flight Readiness Checker:** The setup script automatically executes an automated 10-point readiness check showing green checkmarks (`[✅ PASSED]`) for the CPU architecture, official CLI miner, Docker daemon, Compose plugin, screen multiplexer, Python runtime, networking, and persistent storage. You can re-run this anytime using `make readiness` or `bash scripts/check-readiness.sh`.
 
 ### 🔹 Step 5: Start the Container & Login
 Launch your bot:

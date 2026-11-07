@@ -283,6 +283,10 @@ check("docs: docs/README.md master index exists and links guides", os.path.isfil
 p_compat = subprocess.run(["bash", os.path.join(ROOT, "scripts", "check-compatibility.sh")], capture_output=True, text=True)
 check("compat: scripts/check-compatibility.sh runs and returns compatible output", p_compat.returncode == 0 and "COMPATIBLE" in p_compat.stdout)
 
+p_ready = subprocess.run(["bash", os.path.join(ROOT, "scripts", "check-readiness.sh")], cwd=ROOT, capture_output=True, text=True)
+check("readiness: scripts/check-readiness.sh exists and passes pre-flight checks", p_ready.returncode == 0 and "ALL CRITICAL REQUIREMENTS SATISFIED" in p_ready.stdout and "[✅ PASSED]" in p_ready.stdout)
+check("setup: setup-vps.sh wires scripts/check-readiness.sh", "scripts/check-readiness.sh" in open(os.path.join(ROOT, "setup-vps.sh"), encoding="utf-8").read())
+
 # ======================================================================
 print("\n== gatekeeper ==")
 # ======================================================================
