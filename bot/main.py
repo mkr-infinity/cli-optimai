@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import sys
 import time
 from typing import Optional, Tuple
@@ -131,6 +132,30 @@ def _wd(context: ContextTypes.DEFAULT_TYPE) -> Tuple[Config, OptimaiCLI, Supervi
 # ----------------------------------------------------------------------
 
 
+def check_screen_session() -> tuple[bool, str]:
+    """Check if GNU Screen session is active (either enclosing process or screen -ls)."""
+    sty = os.environ.get("STY")
+    if sty:
+        return True, f"Active ('{sty}')"
+    screen_bin = shutil.which("screen")
+    if screen_bin:
+        try:
+            res = subprocess.run([screen_bin, "-ls"], capture_output=True, text=True, timeout=2)
+            out = res.stdout + res.stderr
+            if "optimai" in out.lower():
+                for line in out.splitlines():
+                    if "optimai" in line.lower():
+                        parts = line.strip().split()
+                        if parts:
+                            return True, f"Active ('{parts[0]}')"
+                return True, "Active ('optimai' session)"
+            elif "there is a screen on" in out.lower() or "there are screens on" in out.lower():
+                return True, "Active (screen attached)"
+        except Exception:
+            pass
+    return False, "Inactive (supervisor daemon)"
+
+
 async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> tuple[str, InlineKeyboardMarkup]:
     """Construct an informative welcome and status overview card with action buttons."""
     (auth_res, (docker_ok, docker_ver)) = await asyncio.gather(
@@ -161,6 +186,14 @@ async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> t
     auth_badge = "✅ <b>Authenticated</b>" if snap["authenticated"] else "❌ <b>Not Logged In</b> (send /login)"
     docker_badge = f"✅ <b>Reachable</b> (v{docker_ver})" if snap["docker_ok"] else "⚠️ <b>Not Reachable</b>"
 
+    screen_active, screen_desc = check_screen_session()
+    screen_badge = f"🟢 <b>{screen_desc}</b>" if screen_active else f"⚪ <b>{screen_desc}</b>"
+    reward_alerts_badge = (
+        "🔔 <b>ON (real-time)</b>"
+        if getattr(sup, "notify_rewards", True)
+        else "🔕 <b>OFF</b> (/rewardadded on)"
+    )
+
     text = (
         f"👋 <b>Welcome to OptimAI Telegram Node v{bot.__version__}</b> ⛏️\n"
         "<i>Autonomous 24/7 Mining Supervisor & Remote Controller</i>\n\n"
@@ -168,6 +201,8 @@ async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> t
         f"• <b>Node Status:</b> {node_status_badge}\n"
         f"• <b>OptimAI Auth:</b> {auth_badge}\n"
         f"• <b>Docker AI Miner:</b> {docker_badge}\n"
+        f"• <b>Screen Session:</b> {screen_badge}\n"
+        f"• <b>Reward Alerts:</b> {reward_alerts_badge}\n"
         f"• <b>Machine / Host:</b> {html.escape(distro_name)} ({machine}) [{mode}]\n"
         f"• <b>Supervisor:</b> Desired: <code>{snap['desired']}</code> | Breaker: <code>{snap['breaker']}</code>\n\n"
         "⚡ <b>Essential Commands:</b>\n"
@@ -176,6 +211,7 @@ async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> t
         "/status — Full live status & system diagnostic\n"
         "/screen — View detached 24/7 background worker session\n"
         "/rewards — Check mining points & rewards balance\n"
+        "/rewardadded — Toggle real-time reward alerts (on/off)\n"
         "/logs — View recent node log output\n"
         "/login — Authenticate your OptimAI account\n"
         "/help — View complete command catalog\n\n"
@@ -230,6 +266,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/me — view OptimAI CLI profile & Telegram account\n"
         "/logout — sign out from OptimAI account\n"
         "/rewards — check OptimAI mining rewards balance\n"
+        "/rewardadded [on|off] — toggle real-time mining reward notifications\n"
         "/cancel — cancel pending login session\n\n"
         "<b>System & Diagnostics:</b>\n"
         "/update_cli (or /update) — update official optimai-cli\n"
@@ -269,6 +306,13 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         f"crashes: {snap['crashes']}/{CRASH_LIMIT} | backoff level: "
         f"{snap['backoff_level']} | circuit breaker: {snap['breaker']}"
     )
+    screen_active, screen_desc = check_screen_session()
+    reward_notify = (
+        "🔔 ON (real-time alerts)"
+        if getattr(sup, "notify_rewards", True)
+        else "🔕 OFF (/rewardadded on)"
+    )
+
     lines = [
         "<b>Node status</b> (live)",
         f"Node: {node_line}{node_detail}",
@@ -276,6 +320,8 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         f"Desired state: {snap['desired']} (pid: {snap['pid'] or 'none'})",
         f"Authenticated: {'✅ yes' if snap['authenticated'] else '❌ no — run /login'}",
         f"Docker: {'✅ reachable' if snap['docker_ok'] else '❌ NOT REACHABLE'}",
+        f"Screen session: {'🟢 ' if screen_active else '⚪ '}{screen_desc}",
+        f"Reward alerts: {reward_notify}",
         f"Last exit code: {snap['last_exit_code']}",
         breaker_line,
     ]
@@ -382,6 +428,44 @@ async def cmd_rewards(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await _send_pre(lambda msg: _reply(update, msg), body)
 
 
+async def cmd_rewardadded(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Toggle or configure real-time mining reward notifications."""
+    _cfg, _cli, sup, _gate, _login = _wd(context)
+    if context.args:
+        arg = context.args[0].lower().strip()
+        if arg in ("on", "true", "enable", "yes", "1"):
+            sup.set_notify_rewards(True)
+        elif arg in ("off", "false", "disable", "no", "0"):
+            sup.set_notify_rewards(False)
+        else:
+            await _reply(
+                update,
+                "⚠️ <b>Usage:</b> <code>/rewardadded on</code> or <code>/rewardadded off</code>\n"
+                f"Currently reward alerts are: <b>{'🔔 ON' if sup.notify_rewards else '🔕 OFF'}</b>.",
+            )
+            return
+    else:
+        sup.set_notify_rewards(not sup.notify_rewards)
+
+    if sup.notify_rewards:
+        await _reply(
+            update,
+            "🔔 <b>Mining Reward Alerts: ENABLED</b>\n\n"
+            "You will receive an instant Telegram message whenever mining earns new OPTIM rewards, including:\n"
+            "• <b>Workload / Task name</b>\n"
+            "• <b>Amount earned</b> (+OPTIM)\n"
+            "• <b>Updated total balance</b>\n\n"
+            "<i>To turn off alerts at any time, send: /rewardadded off</i>",
+        )
+    else:
+        await _reply(
+            update,
+            "🔕 <b>Mining Reward Alerts: DISABLED</b>\n\n"
+            "Real-time reward notifications are now muted. You can still check your balance at any time with /rewards.\n\n"
+            "<i>To re-enable alerts at any time, send: /rewardadded on</i>",
+        )
+
+
 async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
     path = cfg.node_log_path()
@@ -480,31 +564,30 @@ async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
         return
 
-    url = await login.start()
-    if not url:
-        await _reply(
-            update,
-            "❌ Could not start the login flow (no URL captured from the CLI). "
-            "Check `docker compose logs -f` for details.",
-        )
-        return
-    keyboard = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("🔑 Open login page", url=url)],
-            [InlineKeyboardButton("✨ Register (Ref: 646D12E7)", url="https://node.optimai.network/register?ref=646D12E7")],
-        ]
-    )
-    await _reply(
-        update,
+    # No arguments: present the two official login methods
+    text = (
         "🔑 <b>OptimAI Account Authentication</b>\n\n"
-        "<b>Method 1 (Browser OAuth):</b>\n"
-        "1. Tap <b>Open login page</b> below.\n"
-        "2. Sign in, copy the final redirect URL, and paste it here.\n\n"
-        "<b>Method 2 (Direct Email & Password):</b>\n"
-        "Send: <code>/login your_email@example.com your_password</code>\n\n"
-        "Need an account? Tap <b>Register</b> below.",
-        keyboard,
+        "Choose your preferred login method to connect this node to your OptimAI account:\n\n"
+        "🌐 <b>Method 1: Browser OAuth Key / Link (Recommended)</b>\n"
+        "Tap below to generate a login link. Sign in on your browser, copy the authorization key / redirect code, and paste it here within 3 minutes.\n\n"
+        "📧 <b>Method 2: Direct Email & Password</b>\n"
+        "Authenticate directly with your account credentials by sending:\n"
+        "<code>/login your_email@example.com your_password</code>\n\n"
+        "<i>Need an account? Tap Register below.</i>"
     )
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🌐 Method 1: Browser OAuth Key", callback_data="login_method_oauth"),
+        ],
+        [
+            InlineKeyboardButton("📧 Method 2: Email & Password", callback_data="login_method_password"),
+        ],
+        [
+            InlineKeyboardButton("✨ Register (Ref: 646D12E7)", url="https://node.optimai.network/register?ref=646D12E7"),
+            InlineKeyboardButton("❌ Cancel", callback_data="login_cancel"),
+        ],
+    ])
+    await _reply(update, text, keyboard)
 
 
 async def cmd_update_cli(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -582,10 +665,12 @@ async def cmd_screen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     tail_text = "\n".join(tail).strip() or "(no log output yet)"
     mode = "Local Machine" if cfg.is_local else "Cloud VM / Container"
     status_badge = "🟢 Running (Background Session)" if snap["running"] else "🛑 Stopped"
+    screen_active, screen_desc = check_screen_session()
 
     text = (
         "🖥️ <b>OptimAI Background Worker Session</b> (screen mode)\n\n"
         f"• <b>Status:</b> {status_badge}\n"
+        f"• <b>Screen Session:</b> {'🟢 ' if screen_active else '⚪ '}{screen_desc}\n"
         f"• <b>Session PID:</b> <code>{snap['pid'] or 'detached/none'}</code>\n"
         f"• <b>Uptime:</b> <code>{snap['uptime']}</code>\n"
         f"• <b>Environment:</b> {mode}\n"
@@ -652,6 +737,39 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         else:
             await _reply(update, text, keyboard)
+    elif data == "login_method_oauth":
+        url = await _login.start()
+        if not url:
+            if query.message:
+                await query.message.reply_text("❌ Could not start login flow (no URL captured from CLI). Try again or use Method 2.")
+            return
+        oauth_text = (
+            "🌐 <b>Method 1: Browser OAuth Key Login</b>\n\n"
+            "1. Tap <b>Open Login Page</b> below to sign in on your browser.\n"
+            "2. After signing in, copy the authorization key or the full redirect URL.\n"
+            "3. <b>Paste the key or URL directly here</b> in this chat.\n\n"
+            "⏱️ <i>Session active for 3 minutes. Send /cancel at any time to abort.</i>"
+        )
+        oauth_kbd = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔑 Open Login Page", url=url)],
+            [InlineKeyboardButton("❌ Cancel Login", callback_data="login_cancel")],
+        ])
+        if query.message:
+            await query.message.reply_text(oauth_text, reply_markup=oauth_kbd, parse_mode=ParseMode.HTML)
+    elif data == "login_method_password":
+        pwd_text = (
+            "📧 <b>Method 2: Direct Email & Password Login</b>\n\n"
+            "To log in directly with your registered OptimAI account credentials, send:\n\n"
+            "<code>/login your_email@example.com your_password</code>\n\n"
+            "<i>Your credentials are transmitted directly to the local CLI and never logged or exposed.</i>"
+        )
+        if query.message:
+            await query.message.reply_text(pwd_text, parse_mode=ParseMode.HTML)
+    elif data == "login_cancel":
+        cancelled = await _login.cancel()
+        msg = "✅ Login session cancelled." if cancelled else "ℹ️ No pending login session."
+        if query.message:
+            await query.message.reply_text(msg)
 
 
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -970,6 +1088,7 @@ def register_handlers(app: Application, admin_filter) -> None:
         CommandHandler("stop", cmd_stop_node, filters=admin_filter),
         CommandHandler("restart_node", cmd_restart_node, filters=admin_filter),
         CommandHandler("rewards", cmd_rewards, filters=admin_filter),
+        CommandHandler("rewardadded", cmd_rewardadded, filters=admin_filter),
         CommandHandler("logs", cmd_logs, filters=admin_filter),
         CommandHandler("log", cmd_logs, filters=admin_filter),
         CommandHandler("watch", cmd_watch, filters=admin_filter),

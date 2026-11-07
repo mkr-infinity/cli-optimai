@@ -25,9 +25,11 @@ everything and the persisted desired-state resumes it on the next boot).
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import logging
 import os
+import re
 import signal
 import time
 import urllib.error
@@ -104,6 +106,10 @@ class Supervisor:
         self._watch_task: asyncio.Task | None = None
         self._internet_online = True
         self._last_net_check = time.monotonic()
+
+        self.notify_rewards: bool = self._load_notify_rewards()
+        self._last_reward_balance: float | None = None
+        self._last_reward_check: float = 0.0
 
         # Latest platform health, refreshed by main.py (kept for /status).
         self._authenticated = False
@@ -201,6 +207,35 @@ class Supervisor:
             os.replace(tmp, self._state_path)
         except OSError as exc:  # persistence must never crash the bot
             log.error("Cannot persist state.json: %s", exc)
+
+    def _load_notify_rewards(self) -> bool:
+        settings_path = os.path.join(self.data_dir, "settings.json")
+        try:
+            if os.path.isfile(settings_path):
+                with open(settings_path, "r", encoding="utf-8") as fh:
+                    return bool(json.load(fh).get("notify_rewards", True))
+        except Exception:
+            pass
+        return True
+
+    def set_notify_rewards(self, enabled: bool) -> None:
+        self.notify_rewards = enabled
+        settings_path = os.path.join(self.data_dir, "settings.json")
+        tmp = settings_path + ".tmp"
+        try:
+            data = {}
+            if os.path.isfile(settings_path):
+                try:
+                    with open(settings_path, "r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                except Exception:
+                    data = {}
+            data["notify_rewards"] = enabled
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(data, fh)
+            os.replace(tmp, settings_path)
+        except OSError as exc:
+            log.warning("Could not persist settings.json: %s", exc)
 
     # ------------------------------------------------------------------
     # Lifecycle control
@@ -414,6 +449,9 @@ class Supervisor:
             return
 
         if proc is not None and proc.returncode is None:
+            if self.notify_rewards and (now - self._last_reward_check >= 45.0):
+                self._last_reward_check = now
+                asyncio.create_task(self._check_reward_updates())
             try:
                 tail = tail_file(self._log_path, 15)
                 if contains_update_warning("\n".join(tail)):
@@ -517,7 +555,49 @@ class Supervisor:
             "breaker": "OPEN" if self._breaker_open else "CLOSED",
             "authenticated": self._authenticated,
             "docker_ok": self._docker_ok,
+            "notify_rewards": self.notify_rewards,
         }
+
+    async def _check_reward_updates(self) -> None:
+        try:
+            ok, text = await self.cli.rewards_balance()
+            if not ok or not text:
+                return
+            match = re.search(r"(\d+(?:\.\d+)?)", text)
+            if not match:
+                return
+            current_bal = float(match.group(1))
+
+            if self._last_reward_balance is None:
+                self._last_reward_balance = current_bal
+                return
+
+            if current_bal > self._last_reward_balance:
+                diff = current_bal - self._last_reward_balance
+                self._last_reward_balance = current_bal
+                task_name = self._find_latest_task_name() or "AI Compute Workload"
+                await self._alert(
+                    f"🎉 <b>Mining Reward Earned!</b>\n\n"
+                    f"• <b>Workload / Task:</b> <code>{html.escape(task_name)}</code>\n"
+                    f"• <b>Reward Earned:</b> <code>+{diff:.4f} OPTIM</code>\n"
+                    f"• <b>Total Balance:</b> <code>{current_bal:.4f} OPTIM</code>\n\n"
+                    f"<i>View details anytime with /rewards. Mute alerts: /rewardadded off</i>"
+                )
+            elif current_bal < self._last_reward_balance:
+                self._last_reward_balance = current_bal
+        except Exception as exc:
+            log.debug("Reward poll check exception: %s", exc)
+
+    def _find_latest_task_name(self) -> str | None:
+        try:
+            tail = tail_file(self._log_path, 25)
+            for line in reversed(tail):
+                m = re.search(r"(?:task|job|workload|model|inference)\s*[:#-]?\s*([a-zA-Z0-9_\-\.]+)", line, re.IGNORECASE)
+                if m:
+                    return m.group(0).strip()
+        except Exception:
+            pass
+        return None
 
     async def _alert(self, text: str) -> None:
         if self._alert_fn is None:
