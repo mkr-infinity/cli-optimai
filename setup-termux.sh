@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # setup-termux.sh — Automated Setup for Android Termux
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Allows running the 24/7 supervisor bot and mining node directly
 # on an Android smartphone or tablet using Termux.

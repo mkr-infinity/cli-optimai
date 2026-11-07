@@ -1,11 +1,11 @@
-# ⛏️ OptimAI Telegram Node (v1.3.0)
+# ⛏️ OptimAI Telegram Node (v1.9.0)
 
 Autonomous 24/7 supervisor and Telegram management bot for the official OptimAI CLI Node.
 
 [![CI](https://github.com/mkr-infinity/cli-optimai/actions/workflows/ci.yml/badge.svg)](https://github.com/mkr-infinity/cli-optimai/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.0-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.9.0-orange)](CHANGELOG.md)
 [![Telegram](https://img.shields.io/badge/support-%40mkr__infinity-blue)](https://t.me/mkr_infinity)
 
 > [!IMPORTANT]
@@ -193,5 +193,5 @@ Every deployment target, triage runbook, and project governance policy has a ded
 ---
 
 ### Attribution & Author
-**OptimAI Telegram Node v1.3.0** — Created by **Mohammad Kaif Raja (mkr-infinity)**  
+**OptimAI Telegram Node v1.9.0** — Created by **Mohammad Kaif Raja (mkr-infinity)**  
 [Telegram @mkr_infinity](https://t.me/mkr_infinity) · [Support](https://buymeacoffee.com/mkr_infinity) · UPI: `mkr-infinity@ybl`

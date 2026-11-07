@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #!/usr/bin/env python3
-"""Smoke test suite for optimai-telegram-node (v1.3.0).
+"""Smoke test suite for optimai-telegram-node (v1.9.0).
 
 Runs WITHOUT network and WITHOUT real Telegram:
   - OPTIMAI_BIN points at scripts/stub-optimai-cli.sh (deterministic fake CLI)

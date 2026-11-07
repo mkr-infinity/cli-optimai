@@ -1,6 +1,6 @@
 ﻿# ============================================================
 # setup-windows.ps1 — Automated Setup for Windows
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Configures Python environment, downloads official Windows
 # OptimAI CLI binary, and prepares .env for Windows systems.

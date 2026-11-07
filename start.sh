@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # start.sh — Universal Launcher for OptimAI Telegram Bot & Miner
-# OptimAI Telegram Node (v1.3.0)
+# OptimAI Telegram Node (v1.9.0)
 #
 # Starts both the 24/7 Telegram supervisor bot AND the OptimAI
 # mining node in the background across VPS, local machine & Termux.

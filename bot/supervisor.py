@@ -309,7 +309,7 @@ class Supervisor:
             try:
                 req = urllib.request.Request(
                     "https://node.optimai.network",
-                    headers={"User-Agent": "OptimAI-Supervisor/1.3.0"},
+                    headers={"User-Agent": "OptimAI-Supervisor/1.9.0"},
                 )
                 with urllib.request.urlopen(req, timeout=5):
                     return True

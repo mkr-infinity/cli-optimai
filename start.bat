@@ -1,7 +1,7 @@
 @echo off
 REM ============================================================
 REM start.bat — Universal Launcher for Windows
-REM OptimAI Telegram Node (v1.3.0)
+REM OptimAI Telegram Node (v1.9.0)
 REM ============================================================
 
 setlocal enabledelayedexpansion
