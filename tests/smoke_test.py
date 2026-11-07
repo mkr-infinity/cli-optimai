@@ -313,6 +313,18 @@ check(
     f"out={p_login_skip.stdout}",
 )
 
+p_login_legacy = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-login.sh")} && printf "2\\nuser@example.com\\ngoodpass\\n" | prompt_account_login "{STUB}"'],
+    cwd=ROOT,
+    capture_output=True,
+    text=True,
+)
+check(
+    "prompt: scripts/prompt-login.sh executes legacy login with credentials",
+    p_login_legacy.returncode == 0 and "Legacy login submitted" in p_login_legacy.stdout,
+    f"out={p_login_legacy.stdout}",
+)
+
 # Test interactive env prompt intake with piped values
 test_env_path = os.path.join(TMP, "test_interactive.env")
 with open(test_env_path, "w", encoding="utf-8") as f:
