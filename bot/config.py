@@ -104,7 +104,9 @@ def find_local_optimai_bin(preferred: str | None = None) -> str:
         ])
     else:
         home = os.path.expanduser("~")
+        prefix = os.environ.get("PREFIX", "/data/data/com.termux/files/usr")
         candidates.extend([
+            os.path.join(prefix, "bin", "optimai-cli"),
             "/usr/local/bin/optimai-cli",
             os.path.join(home, ".local", "bin", "optimai-cli"),
             os.path.join(home, "bin", "optimai-cli"),

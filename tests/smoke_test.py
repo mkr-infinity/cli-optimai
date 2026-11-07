@@ -275,6 +275,10 @@ check("compat: 32-bit Linux reports incompatible with reason", not c_32 and "32-
 
 check("compat: RAM and storage limits are NOT enforced (advisory only)", "ram_mb" in d_l64 and "disk_free_gb" in d_l64 and c_l64)
 
+c_termux, m_termux, d_termux = check_device_compatibility({"system": "Linux", "machine": "aarch64", "distro_id": "termux", "distro_name": "Termux Android (6.1.0)"})
+check("compat: Termux aarch64 reports Termux PRoot guidance in reason", "Termux" in m_termux and "PRoot" in m_termux)
+check("termux: setup-termux.sh and docs/DEPLOY-TERMUX.md exist", os.path.isfile(os.path.join(ROOT, "setup-termux.sh")) and os.path.isfile(os.path.join(ROOT, "docs", "DEPLOY-TERMUX.md")))
+
 p_compat = subprocess.run(["bash", os.path.join(ROOT, "scripts", "check-compatibility.sh")], capture_output=True, text=True)
 check("compat: scripts/check-compatibility.sh runs and returns compatible output", p_compat.returncode == 0 and "COMPATIBLE" in p_compat.stdout)
 

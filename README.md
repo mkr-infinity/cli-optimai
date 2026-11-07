@@ -159,6 +159,23 @@ You can run the bot on your local personal computer just as easily as on a remot
    ```
    *(The bot automatically detects your local machine environment, auto-loads `.env`, resolves the local `optimai-cli` binary, reuses host `~/.optimai` credentials if present, and routes runtime state to `./data`)*.
 
+### 📱 Option 3: Android Phone / Tablet (Termux)
+You can run the node 24/7 on your Android device without a PC or paid VPS:
+1. Install **Termux from F-Droid** ([Download](https://f-droid.org/en/packages/com.termux/)).
+2. Run the one-shot automated installer in Termux:
+   ```bash
+   pkg update -y && pkg install -y git curl
+   git clone https://github.com/mkr-infinity/optimai-cli.git
+   cd optimai-cli
+   bash setup-termux.sh
+   ```
+3. Configure `.env` and launch your 24/7 background session:
+   ```bash
+   nano .env
+   bash run-termux.sh
+   ```
+*(Detailed guide, wake lock setup, and PRoot x86_64 emulation in [docs/DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md))*.
+
 ---
 
 ## 5. Bot Commands & Official CLI Mapping
@@ -350,6 +367,7 @@ gcloud compute ssh optimai-node --zone=us-central1-a
 Detailed guides are available in the [`docs/`](docs/) directory:
 
 * [DEPLOY-GCP.md](docs/DEPLOY-GCP.md) — Comprehensive Google Cloud (GCP) Compute Engine deployment guide
+* [DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md) — 24/7 Android Termux deployment and mobile mining runbook
 * [DEPLOY-VPS.md](docs/DEPLOY-VPS.md) — Bare-metal VPS setup and hardening guide
 * [DEPLOY-RAILWAY.md](docs/DEPLOY-RAILWAY.md) — Railway configuration and control-plane deployment
 * [ENV-VARS.md](docs/ENV-VARS.md) — Complete dictionary of all environment variables
