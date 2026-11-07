@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -58,6 +59,7 @@ from bot.config import (  # noqa: E402
     find_local_optimai_bin,
     is_local_environment,
     load_dotenv,
+    sync_local_credentials,
 )
 from bot.compatibility import (  # noqa: E402
     check_device_compatibility,
@@ -199,6 +201,33 @@ local_cfg = Config.load(env=base_env(OPTIMAI_HOME="/data/home", DATA_DIR="/data/
 check(
     "config: local auto-detect safely overrides /data to writable local paths",
     not local_cfg.data_dir.startswith("/data/data") or os.access("/data", os.W_OK),
+)
+
+# Test sync_local_credentials
+home_a = os.path.join(TMP, "sync_a")
+home_b = os.path.join(TMP, "sync_b")
+cfg_a = os.path.join(home_a, ".config", "optimai-cli")
+cfg_b = os.path.join(home_b, ".config", "optimai-cli")
+os.makedirs(cfg_a, exist_ok=True)
+with open(os.path.join(cfg_a, "auth.json"), "w", encoding="utf-8") as f:
+    f.write('{"token": "initial_token"}')
+with open(os.path.join(cfg_a, "user.json"), "w", encoding="utf-8") as f:
+    f.write('{"user": "test"}')
+
+sync_local_credentials(home_a, home_b)
+check(
+    "config: sync_local_credentials propagates auth to empty destination",
+    os.path.isfile(os.path.join(cfg_b, "auth.json")) and json.load(open(os.path.join(cfg_b, "auth.json"))).get("token") == "initial_token",
+)
+
+# Simulate newer token in B syncing back to A
+time.sleep(0.01)
+with open(os.path.join(cfg_b, "auth.json"), "w", encoding="utf-8") as f:
+    f.write('{"token": "updated_token"}')
+sync_local_credentials(home_a, home_b)
+check(
+    "config: sync_local_credentials updates older credentials with newer version",
+    json.load(open(os.path.join(cfg_a, "auth.json"))).get("token") == "updated_token",
 )
 
 # ======================================================================

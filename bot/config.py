@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import platform
 import shutil
+import subprocess
 from dataclasses import dataclass, field
 
 _TRUE = {"true", "1", "yes", "on"}
@@ -114,6 +115,77 @@ def find_local_optimai_bin(preferred: str | None = None) -> str:
             return cand
 
     return "optimai-cli.exe" if is_win else "optimai-cli"
+
+
+def fix_local_permissions(data_dir: str) -> None:
+    """If running locally, check if files in data_dir are unreadable (e.g. created
+    by root inside a Docker container). If unreadable and docker is available,
+    restore ownership to current user."""
+    if not os.path.exists(data_dir) or not hasattr(os, "getuid"):
+        return
+    needs_fix = False
+    for root, dirs, files in os.walk(data_dir):
+        for name in files:
+            p = os.path.join(root, name)
+            if not os.access(p, os.R_OK | os.W_OK):
+                needs_fix = True
+                break
+        if needs_fix:
+            break
+
+    if needs_fix and shutil.which("docker"):
+        try:
+            uid, gid = os.getuid(), os.getgid()
+            subprocess.run(
+                ["docker", "run", "--rm", "-v", f"{os.path.abspath(data_dir)}:/mnt", "alpine", "chown", "-R", f"{uid}:{gid}", "/mnt"],
+                capture_output=True,
+                timeout=15,
+                check=False,
+            )
+        except Exception:
+            pass
+
+
+def sync_local_credentials(dir_a: str, dir_b: str) -> None:
+    """Synchronize optimai-cli credentials between two home directories
+    (e.g. ./data/home and ~/.config/optimai-cli)."""
+    if not dir_a or not dir_b or dir_a == dir_b:
+        return
+    path_a = os.path.join(dir_a, ".config", "optimai-cli")
+    path_b = os.path.join(dir_b, ".config", "optimai-cli")
+
+    auth_a = os.path.join(path_a, "auth.json")
+    auth_b = os.path.join(path_b, "auth.json")
+
+    has_a = os.path.isfile(auth_a) and os.access(auth_a, os.R_OK)
+    has_b = os.path.isfile(auth_b) and os.access(auth_b, os.R_OK)
+
+    if not has_a and not has_b:
+        return
+
+    src, dst = None, None
+    if has_a and not has_b:
+        src, dst = path_a, path_b
+    elif has_b and not has_a:
+        src, dst = path_b, path_a
+    elif has_a and has_b:
+        try:
+            mtime_a = os.path.getmtime(auth_a)
+            mtime_b = os.path.getmtime(auth_b)
+            src, dst = (path_a, path_b) if mtime_a >= mtime_b else (path_b, path_a)
+        except OSError:
+            src, dst = path_a, path_b
+
+    if src and dst:
+        try:
+            os.makedirs(dst, exist_ok=True)
+            for fname in ("auth.json", "user.json"):
+                sfile = os.path.join(src, fname)
+                dfile = os.path.join(dst, fname)
+                if os.path.isfile(sfile) and os.access(sfile, os.R_OK):
+                    shutil.copy2(sfile, dfile)
+        except OSError:
+            pass
 
 
 def _parse_bool(raw: str | None, default: bool = False) -> bool:
@@ -257,17 +329,25 @@ class Config:
             optimai_home = os.path.abspath(os.path.expanduser(raw_home or "/data/home"))
         else:
             # Running locally:
-            # If user already has ~/.optimai on their machine, use ~ so optimai-cli
-            # can find the existing CLI core and credentials!
             user_home = os.path.expanduser("~")
-            existing_optimai = os.path.join(user_home, ".optimai")
-            if not raw_home or raw_home.startswith("/data"):
-                if os.path.isdir(existing_optimai):
+            data_home = os.path.abspath("./data/home")
+            fix_local_permissions(data_dir)
+            fix_local_permissions(data_home)
+            sync_local_credentials(data_home, user_home)
+
+            if raw_home and not raw_home.startswith("/data"):
+                optimai_home = os.path.abspath(os.path.expanduser(raw_home))
+            else:
+                data_auth = os.path.join(data_home, ".config", "optimai-cli", "auth.json")
+                user_auth = os.path.join(user_home, ".config", "optimai-cli", "auth.json")
+                if os.path.isfile(data_auth) and os.access(data_auth, os.R_OK):
+                    optimai_home = data_home
+                elif os.path.isfile(user_auth) and os.access(user_auth, os.R_OK):
+                    optimai_home = user_home
+                elif os.path.isdir(os.path.join(user_home, ".optimai")):
                     optimai_home = user_home
                 else:
-                    optimai_home = os.path.abspath("./data/home")
-            else:
-                optimai_home = os.path.abspath(os.path.expanduser(raw_home))
+                    optimai_home = data_home
 
         # Binary resolution
         raw_bin = (env.get("OPTIMAI_BIN") or "").strip()
