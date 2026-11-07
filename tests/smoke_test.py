@@ -283,6 +283,20 @@ check("installer: universal setup.sh exists and is executable", os.path.isfile(o
 check("codespaces: setup-codespaces.sh and .devcontainer/devcontainer.json exist", os.path.isfile(os.path.join(ROOT, "setup-codespaces.sh")) and os.access(os.path.join(ROOT, "setup-codespaces.sh"), os.X_OK) and os.path.isfile(os.path.join(ROOT, ".devcontainer", "devcontainer.json")))
 check("windows: setup-windows.ps1 and start.bat exist", os.path.isfile(os.path.join(ROOT, "setup-windows.ps1")) and os.path.isfile(os.path.join(ROOT, "start.bat")))
 check("prompt: scripts/prompt-env.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-env.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-env.sh"), os.X_OK))
+check("prompt: scripts/prompt-login.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-login.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-login.sh"), os.X_OK))
+
+# Test login prompt skip behavior on empty input
+p_login_skip = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-login.sh")} && printf "\\n" | prompt_account_login "{STUB}"'],
+    cwd=ROOT,
+    capture_output=True,
+    text=True,
+)
+check(
+    "prompt: scripts/prompt-login.sh skips cleanly when user presses Enter",
+    p_login_skip.returncode == 0 and "skipped or timed out" in p_login_skip.stdout,
+    f"out={p_login_skip.stdout}",
+)
 
 # Test interactive env prompt intake with piped values
 test_env_path = os.path.join(TMP, "test_interactive.env")
@@ -561,6 +575,17 @@ async def supervisor_checks() -> None:
         "supervisor: reset_crashes_if_stable helper exists",
         hasattr(sup2, "reset_crashes_if_stable"),
     )
+    check("supervisor: notify_rewards defaults to True", sup2.notify_rewards is True)
+    sup2.set_notify_rewards(False)
+    check(
+        "supervisor: set_notify_rewards(False) updates setting and snapshot",
+        sup2.notify_rewards is False and sup2.snapshot()["notify_rewards"] is False,
+    )
+    sup2.set_notify_rewards(True)
+    check(
+        "supervisor: set_notify_rewards(True) updates setting and snapshot",
+        sup2.notify_rewards is True and sup2.snapshot()["notify_rewards"] is True,
+    )
 
     # fmt_uptime formatting
     check(
@@ -641,7 +666,7 @@ with open(os.path.join(ROOT, "bot", "main.py"), encoding="utf-8") as fh:
     src = fh.read()
 
 for cmd in (
-    "help", "status", "start_node", "stop_node", "restart_node", "rewards",
+    "help", "status", "start_node", "stop_node", "restart_node", "rewards", "rewardadded",
     "logs", "log", "watch", "login", "auth_status", "me", "logout", "cancel", "id", "version", "ping", "uptime", "disk", "system", "healthcheck", "update_cli", "login_legacy", "screen",
 ):
     check(
@@ -726,6 +751,10 @@ test_card_text, test_card_markup = asyncio.run(build_welcome_card(test_cfg, test
 check(
     "main: build_welcome_card executes cleanly and returns overview card",
     "Welcome to OptimAI Telegram Node" in test_card_text and bool(test_card_markup),
+)
+check(
+    "main: build_welcome_card includes screen session and reward alerts",
+    "Screen Session:" in test_card_text and "Reward Alerts:" in test_card_text,
 )
 check(
     "main: /start handler mapped to cmd_start",

@@ -302,7 +302,7 @@ class Config:
     node_auto_start: bool = True
     log_tail_lines: int = 40
     watch_seconds: int = 120
-    login_ttl_minutes: int = 15
+    login_ttl_minutes: int = 3
     enable_health_port: int | None = None
 
     contact_username: str = "mkr_infinity"
@@ -363,7 +363,7 @@ class Config:
         log_tail_lines = _parse_int(env.get("LOG_TAIL_LINES"), "LOG_TAIL_LINES", 40, log)
         watch_seconds = _parse_int(env.get("WATCH_SECONDS"), "WATCH_SECONDS", 120, log)
         login_ttl = _parse_int(
-            env.get("LOGIN_TTL_MINUTES"), "LOGIN_TTL_MINUTES", 15, log
+            env.get("LOGIN_TTL_MINUTES"), "LOGIN_TTL_MINUTES", 3, log
         )
 
         # --- health port: empty = disabled (supports ENABLE_HEALTH_PORT and Railway's PORT) ---

@@ -99,6 +99,7 @@ All commands directly interface with the official upstream `optimai-cli`:
 | `/status` | `optimai-cli node status` | Admin | Live status: uptime, Docker health, crash counters |
 | `/screen` | Detached session | Admin | View background session, worker PID, and live snapshot |
 | `/rewards` | `optimai-cli rewards balance` | Admin | Display current OptimAI earned points and rewards |
+| `/rewardadded [on\|off]` | Reward Supervisor | Admin | Toggle real-time Telegram alerts on mining reward payout |
 | `/logs` (or `/log`) | `tail -n 40 node.log` | Admin | View last 40 lines of node logs in Telegram |
 | `/watch [sec]` | `tail -f node.log` | Admin | Live streaming log tail in Telegram (10–600s) |
 | `/update_cli` | `optimai-cli update` | Admin | Check for and install upstream CLI updates |

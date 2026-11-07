@@ -202,6 +202,11 @@ fi
 
 # 6) Interactive Credentials Intake & Auto-launch ---------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/prompt-login.sh" ]; then
+  . "$SCRIPT_DIR/scripts/prompt-login.sh"
+  prompt_account_login "optimai-cli"
+fi
+
 if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then
   . "$SCRIPT_DIR/scripts/prompt-env.sh"
   prompt_telegram_credentials "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.example" "bash '$SCRIPT_DIR/start.sh'"

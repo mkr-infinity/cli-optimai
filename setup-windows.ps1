@@ -91,7 +91,71 @@ if (!(Test-Path $envFile) -and (Test-Path $envExample)) {
     Write-Tick "Configuration File" ".env file ready"
 }
 
-# 6. Interactive Credentials Intake (60s Auto-Timeout)
+# 6. Interactive Account Login Intake (180s Auto-Timeout)
+try {
+    if ([Environment]::UserInteractive) {
+        $optimaiExe = "optimai-cli.exe"
+        if (Test-Path ".\optimai-cli.exe") {
+            $optimaiExe = ".\optimai-cli.exe"
+        }
+        $authStatus = & $optimaiExe auth status 2>$null
+        $isAuth = $false
+        if ($authStatus -match "authenticated|logged in|user:" -and $authStatus -notmatch "not authenticated|not logged in|unauthenticated") {
+            $isAuth = $true
+            Write-Host "`n  [✓] Official OptimAI CLI is already authenticated." -ForegroundColor Green
+        }
+        if (-not $isAuth) {
+            Write-Host "`n======================================================================" -ForegroundColor Cyan
+            Write-Host "  🔑 OPTIMAI ACCOUNT LOGIN (Optional — Auto-timeout: 3 minutes)" -ForegroundColor Cyan
+            Write-Host "======================================================================" -ForegroundColor Cyan
+            Write-Host "  Choose your login method to connect this node to your OptimAI account:`n"
+            Write-Host "  1) Browser OAuth / Authorization Key (Recommended)" -ForegroundColor White
+            Write-Host "     Open link in browser, sign in, and paste the authorization key/code.`n"
+            Write-Host "  2) Direct Email & Password" -ForegroundColor White
+            Write-Host "     Sign in directly with your registered OptimAI email and password.`n"
+            Write-Host "  [Enter 1 or 2, or press Enter to skip / 180s timeout]: " -NoNewline
+
+            $methodChoice = ""
+            $loginTimer = [System.Diagnostics.Stopwatch]::StartNew()
+            while ($loginTimer.Elapsed.TotalSeconds -lt 180) {
+                if ([Console]::KeyAvailable) {
+                    $key = [Console]::ReadKey($true)
+                    if ($key.Key -eq [ConsoleKey]::Enter) { break }
+                    $methodChoice += $key.KeyChar
+                    Write-Host $key.KeyChar -NoNewline
+                }
+                Start-Sleep -Milliseconds 50
+            }
+            Write-Host ""
+            $methodChoice = $methodChoice.Trim()
+
+            if ($methodChoice -eq "1") {
+                Write-Host "`n==> Launching official browser OAuth login flow..." -ForegroundColor Green
+                & $optimaiExe auth login --no-open --paste
+                Write-Host "`n[✓] Login flow complete.`n" -ForegroundColor Green
+            } elseif ($methodChoice -eq "2") {
+                Write-Host "`n==> Direct Email & Password Login:" -ForegroundColor Green
+                Write-Host "  Enter your OptimAI email: " -NoNewline
+                $emailInput = [Console]::ReadLine()
+                Write-Host "  Enter your OptimAI password: " -NoNewline
+                $pwdInput = [Console]::ReadLine()
+                if ($emailInput -and $pwdInput) {
+                    "$emailInput`n$pwdInput" | & $optimaiExe auth login
+                    Write-Host "`n[✓] Direct login submitted.`n" -ForegroundColor Green
+                } else {
+                    Write-Host "`n[!] Email or password empty. Login skipped.`n" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "`n[!] Account login skipped or timed out." -ForegroundColor Yellow
+                Write-Host "    You can log in at any time from Telegram (/login) or terminal.`n"
+            }
+        }
+    }
+} catch {
+    # Non-interactive fallback
+}
+
+# 7. Interactive Credentials Intake (60s Auto-Timeout)
 $configured = $false
 $tokenVal = ""
 $idsVal = ""

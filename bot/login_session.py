@@ -148,7 +148,7 @@ class LoginSession:
 class LoginManager:
     """One pending login session at a time, with TTL auto-cancel."""
 
-    def __init__(self, cli: OptimaiCLI, ttl_minutes: int = 15, alert_fn=None) -> None:
+    def __init__(self, cli: OptimaiCLI, ttl_minutes: int = 3, alert_fn=None) -> None:
         self.cli = cli
         self.ttl_seconds = max(60, int(ttl_minutes) * 60)
         self._alert_fn = alert_fn
