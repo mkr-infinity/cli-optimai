@@ -165,6 +165,7 @@ make logs
 | `Not authenticated` / Browser login not working | Dashboard unsupported or session expired | Send `/login --legacy <email> <password>` or run `optimai-cli auth login --legacy` |
 | `Docker not running` / `no Docker daemon here` | Docker service inactive or unmounted | Ensure Docker Desktop is running before starting the node, then retry `/start_node` |
 | `Another node instance is already running` | Existing background node process | Check PID with `/status` or `/screen` and send `/restart_node` (or `kill <PID>`) |
+| `Container name "/optimai-telegram-node" is already in use` | Existing or conflicting Docker container from prior run | Select `1) Clean Install` when prompted by `start.sh`, or run `make clean-containers` |
 | `Important OptimAI CLI update available` | Complete CLI app replacement required | Send `/update_cli` in Telegram to automatically reinstall the complete CLI binary |
 | Bot not responding | Invalid bot token or network offline | Verify `TELEGRAM_BOT_TOKEN` in `.env` and run `make logs` |
 | Node stopped unexpectedly | Circuit breaker opened (5 crashes) | Check error in `/logs`, resolve, then send `/restart_node` |

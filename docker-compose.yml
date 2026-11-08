@@ -4,6 +4,8 @@
 # container back after crashes, reboots and docker daemon restarts.
 # ============================================================
 
+name: cli-optimai
+
 services:
   optimai:
     build: .

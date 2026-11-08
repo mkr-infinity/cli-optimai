@@ -64,19 +64,50 @@ fi
 
 # 3. Launch
 if [ "$DOCKER_AVAILABLE" = true ]; then
-  step "Starting OptimAI Bot & AI Miner via Docker Compose..."
-  if docker compose version >/dev/null 2>&1; then
-    docker compose up -d --build
-  elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose up -d --build
-  else
-    docker run -d --name optimai-node --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -v ./data:/data optimai-telegram-node
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  REUSE_EXISTING=false
+
+  # Pre-flight container conflict check & interactive resolution
+  for conflict_resolver in "$SCRIPT_DIR/scripts/handle-docker-container.sh" "scripts/handle-docker-container.sh"; do
+    if [ -f "$conflict_resolver" ]; then
+      . "$conflict_resolver"
+      resolve_container_conflict "" 60
+      CONFLICT_RES=$?
+      if [ $CONFLICT_RES -eq 2 ]; then
+        REUSE_EXISTING=true
+      fi
+      break
+    fi
+  done
+
+  if [ "$REUSE_EXISTING" = false ]; then
+    step "Starting OptimAI Bot & AI Miner via Docker Compose..."
+    if docker compose version >/dev/null 2>&1; then
+      if command -v safe_docker_compose_up >/dev/null 2>&1; then
+        safe_docker_compose_up "docker compose"
+      else
+        docker compose up -d --build
+      fi
+    elif command -v docker-compose >/dev/null 2>&1; then
+      if command -v safe_docker_compose_up >/dev/null 2>&1; then
+        safe_docker_compose_up "docker-compose"
+      else
+        docker-compose up -d --build
+      fi
+    else
+      docker rm -f optimai-telegram-node optimai-node >/dev/null 2>&1 || true
+      docker run -d --name optimai-telegram-node --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -v ./data:/data optimai-telegram-node
+    fi
   fi
 
   printf "\n${C_BOLD}======================================================================${C_OFF}\n"
   printf "${C_GREEN}  🚀 OptimAI Telegram Bot & AI Miner Started Successfully!${C_OFF}\n"
   printf "${C_BOLD}======================================================================${C_OFF}\n"
-  printf "  • Supervisor Bot:  ${C_GREEN}RUNNING${C_OFF} (Docker Container)\n"
+  if [ "$REUSE_EXISTING" = true ]; then
+    printf "  • Supervisor Bot:  ${C_GREEN}RUNNING${C_OFF} (Docker Container - Reused Existing)\n"
+  else
+    printf "  • Supervisor Bot:  ${C_GREEN}RUNNING${C_OFF} (Docker Container)\n"
+  fi
   printf "  • AI Miner Node:   ${C_GREEN}RUNNING${C_OFF} (Auto-started with NODE_AUTO_START=true)\n"
   printf "  • Live Logs:       ${C_CYAN}make logs${C_OFF} or ${C_CYAN}docker compose logs -f${C_OFF}\n"
   printf "  • Telegram Bot:    Open Telegram and send ${C_GREEN}/start${C_OFF} or ${C_GREEN}/status${C_OFF}\n"

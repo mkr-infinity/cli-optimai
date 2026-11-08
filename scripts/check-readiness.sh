@@ -149,6 +149,23 @@ else
   FAILED_CHECKS=$((FAILED_CHECKS + 1))
 fi
 
+# 4b. Docker Container Conflict / State
+TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  EXISTING_CID="$(docker ps -a --filter "name=^/optimai-telegram-node$" --format "{{.ID}}" 2>/dev/null | head -n1)"
+  if [ -n "$EXISTING_CID" ]; then
+    C_STATUS="$(docker inspect --format '{{.State.Status}}' "$EXISTING_CID" 2>/dev/null || echo 'unknown')"
+    pass "4b. OptimAI Docker Container" "Found container ${EXISTING_CID:0:12} ($C_STATUS)"
+    PASSED_CHECKS=$((PASSED_CHECKS + 1))
+  else
+    pass "4b. OptimAI Docker Container" "Clean state (no container name conflict)"
+    PASSED_CHECKS=$((PASSED_CHECKS + 1))
+  fi
+else
+  pass "4b. OptimAI Docker Container" "N/A (Non-Docker / Termux environment)"
+  PASSED_CHECKS=$((PASSED_CHECKS + 1))
+fi
+
 # 5. Screen Session Multiplexer
 TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
 if command -v screen >/dev/null 2>&1; then
