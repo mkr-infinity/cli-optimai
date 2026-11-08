@@ -131,8 +131,15 @@ class OptimaiCLI:
             rc, out, err = await self.auth_status()
         except Exception:
             return False
-        text = out + err
-        return rc == 0 and NOT_AUTHENTICATED_MARK not in text
+        text = (out + err).strip()
+        if rc != 0 or not text:
+            return False
+        if NOT_AUTHENTICATED_MARK in text:
+            return False
+        low = text.lower()
+        if "not logged in" in low or "unauthenticated" in low:
+            return False
+        return any(k in low for k in ("logged in", "authenticated", "user:", "@"))
 
     async def node_status(self) -> tuple[bool, str]:
         """(ok, text) — text is passed through raw for Telegram display."""

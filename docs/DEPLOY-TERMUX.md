@@ -223,3 +223,14 @@ Once running in Termux, open your bot in Telegram and use:
 * **How it works**:
   * **Option A (Phone Supervisor)**: The bot runs 24/7 on your phone, syncing credentials, monitoring rewards, and giving you complete remote control.
   * **Option B (Full Mining)**: Run `bash setup-termux-proot.sh` to run the official CLI worker inside PRoot.
+
+---
+
+### 7. `required file not found` Error when running `optimai-cli node start`
+* **Cause**: The official OptimAI binary is compiled for x86_64 and expects the dynamic linker `/lib64/ld-linux-x86-64.so.2` and the `docker` client CLI. On ARM64 Android without multiarch libraries or when `docker` is absent, the loader raises `required file not found`.
+* **Fix**:
+  Run our automated PRoot bridge installer:
+  ```bash
+  bash setup-termux-proot.sh
+  ```
+  This automatically enables multiarch `amd64`, installs `libc6:amd64` (providing `/lib64/ld-linux-x86-64.so.2`), `qemu-user-static`, and `docker.io`, resolving the missing file error completely.

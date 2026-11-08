@@ -36,15 +36,17 @@ else
 fi
 
 step "3/4 Installing QEMU emulation & official OptimAI CLI in Ubuntu"
-info "Configuring x86_64 emulation, downloading and priming optimai-cli..."
+info "Configuring x86_64 emulation, multiarch libraries, and official OptimAI CLI..."
 proot-distro login ubuntu -- bash -c '
   export DEBIAN_FRONTEND=noninteractive
+  dpkg --add-architecture amd64 2>/dev/null || true
   apt-get update -y -q
-  apt-get install -y -q curl ca-certificates qemu-user-static
+  apt-get install -y -q curl ca-certificates qemu-user-static binfmt-support libc6:amd64 libstdc++6:amd64 docker.io 2>/dev/null || apt-get install -y -q curl ca-certificates qemu-user-static docker.io
   curl -fsSL "https://cli-node.optimai.network/optimai_cli_ubuntu" -o /usr/local/bin/optimai-bin
   chmod +x /usr/local/bin/optimai-bin
   cat <<INNER_EOF > /usr/local/bin/optimai-cli
 #!/usr/bin/env bash
+REAL_TARGET="/usr/local/bin/optimai-bin"
 args=()
 for arg in "\$@"; do
   if [ "\$arg" = "-v" ]; then
@@ -53,7 +55,13 @@ for arg in "\$@"; do
     args+=("\$arg")
   fi
 done
-exec /usr/local/bin/optimai-bin "\${args[@]}"
+if [ "\$(uname -m)" != "x86_64" ] && command -v qemu-x86_64-static >/dev/null 2>&1; then
+  exec qemu-x86_64-static -L / "\$REAL_TARGET" "\${args[@]}"
+elif [ "\$(uname -m)" != "x86_64" ] && command -v qemu-x86_64 >/dev/null 2>&1; then
+  exec qemu-x86_64 -L / "\$REAL_TARGET" "\${args[@]}"
+else
+  exec "\$REAL_TARGET" "\${args[@]}"
+fi
 INNER_EOF
   chmod +x /usr/local/bin/optimai-cli
   /usr/local/bin/optimai-cli --help >/dev/null 2>&1 || true
@@ -81,6 +89,16 @@ exec proot-distro login ubuntu -- /usr/local/bin/optimai-cli "${args[@]}"
 EOF
 chmod +x "$WRAPPER_PATH"
 cp -f "$WRAPPER_PATH" "$USER_BIN"
+
+# Ensure docker CLI is also bridged to Termux if not natively present
+if ! command -v docker >/dev/null 2>&1; then
+  cat <<'EOF' > "$PREFIX_DIR/bin/docker"
+#!/usr/bin/env bash
+exec proot-distro login ubuntu -- docker "$@"
+EOF
+  chmod +x "$PREFIX_DIR/bin/docker"
+  cp -f "$PREFIX_DIR/bin/docker" "$HOME/.local/bin/docker" 2>/dev/null || true
+fi
 
 printf "\n${C_GREEN}============================================================${C_OFF}\n"
 printf "${C_GREEN} PRoot On-Device Mining Setup Complete! ⛏️${C_OFF}\n"

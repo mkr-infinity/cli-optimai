@@ -25,8 +25,8 @@ URL_RE = re.compile(r"https://\S*node\.optimai\.network/login\?\S+", re.IGNORECA
 # Fallback: any generic https URL line mentioning "login".
 URL_FALLBACK_RE = re.compile(r"https://\S+", re.IGNORECASE)
 
-SUCCESS_WORDS = ("success", "logged in", "authenticated")
-FAILURE_WORDS = ("error", "failed", "invalid")
+SUCCESS_WORDS = ("success", "logged in", "authenticated", "signed in")
+FAILURE_WORDS = ("error", "failed", "invalid", "incorrect", "unauthorized", "denied")
 
 GONE_MESSAGE = "The login process is gone — start a new session with /login."
 URL_CAPTURE_TIMEOUT = 60  # seconds to wait for the CLI to print the URL

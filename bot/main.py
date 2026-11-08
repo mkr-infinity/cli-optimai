@@ -400,9 +400,11 @@ async def cmd_start_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if cfg.is_local:
         sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
     if not await cli.is_authenticated():
+        rc, out, err = await cli.auth_status()
+        auth_msg = (out + err).strip() or "Not authenticated"
         await _reply(
             update,
-            "⚠️ <b>Not authenticated:</b> Please log in first using /login before starting the node.",
+            f"⚠️ <b>Not authenticated:</b> {html.escape(auth_msg)}\n\nPlease log in first using /login before starting the node.",
         )
         return
     sup.close_breaker()
@@ -600,6 +602,18 @@ async def _execute_email_password_login(
     await _reply(update, "⏳ Attempting direct email & password authentication...")
     ok, msg = await login.login_legacy(email, password)
     if ok:
+        auth_ok = await cli.is_authenticated()
+        if not auth_ok:
+            rc, out, err = await cli.auth_status()
+            detailed_err = (out + err).strip() or msg
+            await _reply(
+                update,
+                f"❌ <b>Authentication error from OptimAI CLI:</b>\n"
+                f"<pre>{html.escape(detailed_err)}</pre>\n\n"
+                f"Please check your email and password and try again.",
+            )
+            return
+
         auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
         if not os.path.isfile(auth_file):
             u_auth = os.path.expanduser("~/.config/optimai-cli/auth.json")

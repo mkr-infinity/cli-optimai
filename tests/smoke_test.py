@@ -371,6 +371,19 @@ check(
     f"out={p_login_legacy.stdout}",
 )
 
+p_login_bad = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-login.sh")} && printf "2\\nuser@example.com\\nbadpass\\n" | prompt_account_login "{STUB}"'],
+    cwd=ROOT,
+    env=dict(os.environ, OPTIMAI_STUB_AUTH_FILE=prompt_auth_file + "_bad"),
+    capture_output=True,
+    text=True,
+)
+check(
+    "prompt: scripts/prompt-login.sh catches invalid credentials and reports failure",
+    p_login_bad.returncode == 0 and "Authentication failed" in p_login_bad.stdout,
+    f"out={p_login_bad.stdout}",
+)
+
 # Test interactive env prompt intake with piped values
 test_env_path = os.path.join(TMP, "test_interactive.env")
 with open(test_env_path, "w", encoding="utf-8") as f:
