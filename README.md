@@ -1,198 +1,113 @@
 # ⛏️ OptimAI Telegram Bot (v1.9.0)
 
-Autonomous 24/7 supervisor and Telegram management bot for the official OptimAI CLI Node.
+> Autonomous 24/7 supervisor and remote Telegram management bot for the official [OptimAI CLI Node](https://github.com/OptimaiNetwork/OptimAI-CLI-Node).
 
 [![CI](https://github.com/mkr-infinity/cli-optimai/actions/workflows/ci.yml/badge.svg)](https://github.com/mkr-infinity/cli-optimai/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.9.0-orange)](CHANGELOG.md)
 [![Telegram](https://img.shields.io/badge/support-%40mkr__infinity-blue)](https://t.me/mkr_infinity)
 
-> [!IMPORTANT]
-> **Official OptimAI Reference Notice:**  
-> This project is a **24/7 autonomous supervisor and Telegram manager** that wraps the official `optimai-cli`. It is not an alternative documentation site. For native CLI documentation and hardware requirements, visit the official **[OptimAI CLI Node Repository](https://github.com/OptimaiNetwork/OptimAI-CLI-Node)**.  
-> Need an OptimAI mining account? **[Register with Referral Code 646D12E7](https://node.optimai.network/register?ref=646D12E7)**.
+---
+
+## ⚡ Architecture
 
 ```
-┌──────────┐   outbound polling   ┌────────────────────┐   subprocess    ┌──────────────┐   docker.sock   ┌─────────────┐
-│ Telegram │ <──────────────────> │ Telegram Bot       │ <─────────────> │ optimai-cli  │ <─────────────> │ Docker      │
-│  Client  │     (no open ports)  │ (Supervisor Loop)  │   NODE_AUTO_... │ + Local Auth │    Workload     │ AI Miner    │
-└──────────┘                      └────────────────────┘                 └──────────────┘                 └─────────────┘
+┌──────────────────┐    Polling     ┌───────────────────────┐   Subprocess    ┌──────────────┐   Docker Sock   ┌─────────────┐
+│  Telegram App    │ <────────────> │  Telegram Bot         │ <─────────────> │ optimai-cli  │ <─────────────> │ Docker      │
+│  (Remote Access) │ (No open ports)│  (Supervisor Loop)    │  Auto-Restart   │ + Local Auth │   Containers    │ AI Miner    │
+└──────────────────┘                └───────────────────────┘                 └──────────────┘                 └─────────────┘
 ```
+
+- **24/7 Supervisor:** Keeps the node alive with exponential backoff and circuit-breaker auto-recovery.
+- **Dual Launch:** Starts both the Telegram supervisor bot and the OptimAI AI miner with a single command.
+- **Remote Control:** Authenticate, control the node, monitor earnings, and view live logs from Telegram.
+- **Cross-Platform:** Runs on Linux VPS, Google Cloud VM, Android (Termux), GitHub Codespaces, macOS, and Windows.
 
 ---
 
-## ⚡ Key Capabilities
+## 🚀 Quick Start
 
-* **24/7 Autonomous Supervisor**: Monitors the mining node with auto-restart on crash (exponential backoff 5s → 15s → 60s → 300s & 5-crash circuit breaker).
-* **Simultaneous Auto-Start**: Running `bash start.sh` launches both the Telegram bot supervisor and the OptimAI AI miner automatically.
-* **Full Remote Control**: Manage login, node state, rewards, live log streaming, and updates directly through Telegram.
-* **Persistent Credential Database**: Automatically restores authentication credentials across host reboots and container rebuilds.
-* **Universal Deployment**: Runs seamlessly on Cloud VPS, Google Cloud Compute Engine, Local PC, or Android Phone (Termux).
-
----
-
-## 🚀 Quickstart: 3 Steps to Launch
-
-### 1. Clone & Automated Setup
+### 1. Clone & Setup
 ```bash
 git clone https://github.com/mkr-infinity/cli-optimai.git && cd cli-optimai
 bash setup.sh
 ```
+`setup.sh` auto-detects your environment (Linux, Termux, macOS, Windows, Codespaces), installs required dependencies, and sets up `.env`.
 
-#### Official OptimAI CLI Manual Installation
-If installing or updating the official upstream binary manually:
+### 2. Configure Credentials
+When prompted during setup, or by editing `.env`:
+- `TELEGRAM_BOT_TOKEN`: Your bot token from [@BotFather](https://t.me/BotFather)
+- `TELEGRAM_ALLOWED_IDS`: Your Telegram user ID from [@userinfobot](https://t.me/userinfobot) (or run `/id` in the bot)
 
-* **macOS:**
-  ```bash
-  curl -fL https://cli-node.optimai.network/optimai_cli_darwin_universal2 -o optimai-cli
-  chmod +x optimai-cli
-  sudo mv optimai-cli /usr/local/bin/optimai-cli
-  ```
-* **Linux (Ubuntu / Debian / CentOS / Arch):**
-  ```bash
-  curl -fL https://cli-node.optimai.network/optimai_cli_ubuntu -o optimai-cli
-  chmod +x optimai-cli
-  sudo mv optimai-cli /usr/local/bin/optimai-cli
-  ```
-* **Windows (PowerShell or Command Prompt):**
-  ```powershell
-  curl.exe -fL https://cli-node.optimai.network/optimai_cli_windows.exe -o optimai-cli.exe
-  .\optimai-cli.exe --help
-  ```
-
-> [!NOTE]
-> `bash setup.sh` automatically detects your platform (GitHub Codespaces, Android Termux, Linux VPS, macOS, or Windows), installs required system packages, downloads and primes the official OptimAI CLI binary, and configures `.env`.
-
-> [!TIP]
-> **Interactive Credentials Intake (60s Timeout):** During setup, the installer prompts you to input your `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALLOWED_IDS`. If entered, the bot and AI miner auto-launch immediately! If skipped (by pressing Enter or waiting 60s), you can manually enter them in `.env`.
-
-> [!IMPORTANT]
-> **Mining directly on an Android smartphone or tablet?**  
-> Refer to the dedicated **[Android Termux 24/7 Mobile Mining Guide](docs/DEPLOY-TERMUX.md)** for battery management, wake lock setup, and on-device ARM64 PRoot emulation.
-
-### 2. Configure Telegram Credentials (If Skipped)
-If you skipped interactive setup, edit `.env` with your editor of choice (`nano .env` or `notepad .env`):
-* `TELEGRAM_BOT_TOKEN`: Token obtained from [@BotFather](https://t.me/BotFather).
-* `TELEGRAM_ALLOWED_IDS`: Your numeric Telegram ID (obtain via [@userinfobot](https://t.me/userinfobot) or send `/id` to the bot).
-
-### 3. Start Bot & Miner
+### 3. Launch
 ```bash
 bash start.sh
-# or: make start (on Windows: .\start.bat)
 ```
-
-> [!TIP]
-> `bash start.sh` auto-detects your platform: it runs via Docker Compose when Docker is present, or through a detached `screen` session for native Linux, GitHub Codespaces, and Android Termux. Both the Telegram supervisor bot and the OptimAI AI miner launch together automatically.
+*(On Windows: run `.\start.bat`)*
 
 ---
 
-## 🗺️ Deployment Platforms
+## 📱 Telegram Commands
 
-| Platform | Quick Command | Detailed Guide |
+| Command | Action | Description |
 |---|---|---|
-| **GitHub Codespaces** (1-Click in-browser cloud mining) | `bash setup-codespaces.sh && bash start.sh` | Open in Codespaces, configure `.env`, and start |
-| **Cloud VPS / Linux Host** (Ubuntu, Debian, Arch, Fedora) | `sudo bash setup-vps.sh && bash start.sh` | [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) |
-| **Google Cloud (GCP)** (Compute Engine VM) | `sudo bash setup-vps.sh && bash start.sh` | [docs/DEPLOY-GCP.md](docs/DEPLOY-GCP.md) |
-| **Android Phone / Tablet** (Termux 24/7 mobile mining) | `bash setup-termux.sh && bash start.sh` | [docs/DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md) |
-| **Windows PC** (Native PowerShell & CMD background node) | `.\setup-windows.bat && .\start.bat` | Run PowerShell setup and launch |
-| **macOS** (Apple Silicon M1-M4 & Intel Mac) | `bash setup.sh && bash start.sh` | Run universal setup and launch |
-
-> [!WARNING]
-> Google Cloud's Acceptable Use Policy restricts computational and crypto mining on **Free Trial ($300 credit) accounts**. For a suspension-free experience, use standard paid accounts, dedicated VPS hosts, or Android Termux.
-
----
-
-## 📱 Telegram Command Reference
-
-All commands directly interface with the official upstream `optimai-cli`:
-
-| Command | Upstream CLI Command | Access | Description |
-|---|---|---|---|
-| `/start` | Welcome Overview | Admin | Live system diagnostics, node status, and quick buttons |
-| `/login [--legacy] [email pwd]` | `optimai-cli auth login [--legacy]` | Admin | Browser login (default) or legacy email/password sign-in |
-| `/auth [login\|logout\|me\|status]` | `optimai-cli auth ...` | Admin | Official CLI account subcommands |
-| `/auth_status` | `optimai-cli auth status` | Admin | Check live OptimAI account connection status |
-| `/me` | `optimai-cli auth me` | Admin | View authenticated OptimAI profile and node details |
-| `/sync` | Bi-directional sync | Admin | Force credential & database sync between bot and workspace terminal |
-| `/logout` | `optimai-cli auth logout` | Admin | Sign out and purge local stored credentials |
-| `/start_node` (or `/startnode`) | `optimai-cli node start` | Admin | Start mining process and Docker AI miner containers |
-| `/stop_node` (or `/stop`, `/stopnode`) | `optimai-cli node stop` | Admin | Stop node and terminate background mining containers |
-| `/restart_node` (or `/restart`) | Stop + Start | Admin | Gracefully restart node and reset circuit breaker |
-| `/node [start\|stop\|restart\|status]` | `optimai-cli node ...` | Admin | Official CLI node subcommands |
-| `/status` (or `/nodestatus`) | `optimai-cli node status` | Admin | Live status: uptime, Docker health, crash counters |
-| `/screen` | Detached session | Admin | View background session, worker PID, and live snapshot |
-| `/rewards` (or `/reward`, `/balance`) | `optimai-cli rewards balance` | Admin | Display current OptimAI earned points and rewards |
-| `/rewardadded [on\|off]` | Reward Supervisor | Admin | Toggle real-time Telegram alerts on mining reward payout |
-| `/logs` (or `/log`) | `tail -n 40 node.log` | Admin | View last 40 lines of node logs in Telegram |
-| `/watch [sec]` | `tail -f node.log` | Admin | Live streaming log tail in Telegram (10–600s) |
-| `/update_cli` | `optimai-cli update` | Admin | Check for and install upstream CLI updates |
-| `/env` | Environment Reader | Admin | View active configuration (.env) with masked secrets |
-| `/setenv [KEY VAL]` | Environment Editor | Admin | Update .env configuration and runtime settings directly |
-| `/ping` | Control-plane probe | Admin | Check bot response latency (< 50ms) |
-| `/uptime` | Supervisor metric | Admin | View bot and node supervisor uptime |
-| `/help` | — | Admin | Show full command reference |
-| `/id` | — | **Public** | Show numeric Telegram ID (budgeted for strangers) |
-
-### 🖥️ Viewing Logs in Terminal
-Stream live node logs in your terminal at any time:
-```bash
-make logs
-# or: python -m bot.main logs
-```
+| `/start` | Overview | Bot dashboard, node state, and quick action buttons |
+| `/login` | `auth login` | Sign in with OptimAI browser flow |
+| `/login_legacy <email> <pwd>` | `auth login --legacy` | Sign in directly via email & password |
+| `/auth_status` | `auth status` | Check account authentication status |
+| `/me` | `auth me` | View account details and node identifier |
+| `/start_node` | `node start` | Start the official mining process and Docker containers |
+| `/stop_node` | `node stop` | Stop node and background mining containers |
+| `/restart_node` | Restart | Gracefully restart the mining node |
+| `/status` | `node status` | View uptime, Docker health, and crash statistics |
+| `/rewards` | `rewards balance` | Display mined points and rewards balance |
+| `/rewardadded [on\|off]` | Alerts | Toggle Telegram alerts when rewards increase |
+| `/logs` | View Logs | Display recent node output lines |
+| `/watch [sec]` | Live Stream | Stream live node output directly in Telegram (10–600s) |
+| `/update_cli` | `update` | Update the official OptimAI CLI binary |
+| `/id` | User Info | Show your Telegram user ID *(public)* |
 
 ---
 
-## ⚙️ Configuration Reference (`.env`)
+## ⚙️ Configuration (`.env`)
 
 | Variable | Required | Default | Description |
 |---|:---:|:---:|---|
-| `TELEGRAM_BOT_TOKEN` | **Yes** | — | Bot API token from [@BotFather](https://t.me/BotFather) |
-| `TELEGRAM_ALLOWED_IDS` | **Yes** | — | Comma-separated admin Telegram user IDs |
-| `NODE_AUTO_START` | No | `true` | Automatically start mining process when bot boots |
-| `LOG_TAIL_LINES` | No | `40` | Default line count returned by `/logs` |
-| `WATCH_SECONDS` | No | `120` | Default streaming duration for `/watch` (seconds) |
-| `LOGIN_TTL_MINUTES` | No | `15` | Minutes before an interactive login session expires |
-| `CONTACT_USERNAME` | No | `mkr_infinity` | Telegram handle displayed to unauthorized visitors |
-| `UNAUTH_MAX_MESSAGES` | No | `3` | Max replies a stranger receives before permanent mute |
+| `TELEGRAM_BOT_TOKEN` | **Yes** | — | Bot token from [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_ALLOWED_IDS` | **Yes** | — | Comma-separated admin Telegram IDs |
+| `NODE_AUTO_START` | No | `true` | Automatically run `optimai-cli node start` on boot |
+| `LOG_TAIL_LINES` | No | `40` | Number of lines returned by `/logs` |
+| `WATCH_SECONDS` | No | `120` | Streaming duration for `/watch` (seconds) |
 
 ---
 
-## 🔧 Troubleshooting
+## 🗺️ Deployment Guides
 
-| Issue | Cause | Solution |
+| Platform | Recommended Setup | Guide |
 |---|---|---|
-| `Not authenticated` / Browser login not working | Dashboard unsupported or session expired | Send `/login --legacy <email> <password>` or run `optimai-cli auth login --legacy` |
-| `Docker not running` / `no Docker daemon here` | Docker service inactive or unmounted | Ensure Docker Desktop is running before starting the node, then retry `/start_node` |
-| `Another node instance is already running` | Existing background node process | Check PID with `/status` or `/screen` and send `/restart_node` (or `kill <PID>`) |
-| `Container name "/optimai-telegram-node" is already in use` | Existing or conflicting Docker container from prior run | Select `1) Clean Install` when prompted by `start.sh`, or run `make clean-containers` |
-| `Important OptimAI CLI update available` | Complete CLI app replacement required | Send `/update_cli` in Telegram to automatically reinstall the complete CLI binary |
-| Bot not responding | Invalid bot token or network offline | Verify `TELEGRAM_BOT_TOKEN` in `.env` and run `make logs` |
-| Node stopped unexpectedly | Circuit breaker opened (5 crashes) | Check error in `/logs`, resolve, then send `/restart_node` |
-
-> [!NOTE]
-> On Windows PowerShell / Command Prompt, use `.\optimai-cli.exe` if the executable is not in your system `PATH`.
-> For step-by-step incident response, circuit breaker recovery, and log inspection, see the **[Troubleshooting Runbook](docs/RUNBOOK.md)**.
+| ☁️ **Linux VPS / Server** | `sudo bash setup-vps.sh && bash start.sh` | [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) |
+| 📱 **Android Phone (Termux)** | `bash setup-termux.sh && bash start.sh` | [docs/DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md) |
+| 🌐 **Google Cloud (GCP)** | `sudo bash setup-vps.sh && bash start.sh` | [docs/DEPLOY-GCP.md](docs/DEPLOY-GCP.md) |
+| 💻 **GitHub Codespaces** | `bash setup-codespaces.sh && bash start.sh` | Codespaces auto-config |
+| 🪟 **Windows (PC)** | `.\setup-windows.bat && .\start.bat` | Native PowerShell/CMD |
+| 🛠️ **Troubleshooting** | Diagnostics, crash recovery & logs | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
 
 ---
 
-## 📚 Complete Guides & Documentation Directory
+## 🔧 Common Troubleshooting
 
-Every deployment target, triage runbook, and project governance policy has a dedicated guide:
-
-| Guide / Manual | Purpose & Target Audience | Link |
-|---|---|---|
-| 📱 **Android Termux 24/7 Mobile Mining** | Complete guide for running on Android devices, acquiring CPU wake-lock, and bridging ARM64 via PRoot emulation | [docs/DEPLOY-TERMUX.md](docs/DEPLOY-TERMUX.md) |
-| ☁️ **Multi-Distro VPS Deployment** | Production setup on Ubuntu, Debian, Arch Linux, Fedora, CentOS, openSUSE, and Alpine hosts | [docs/DEPLOY-VPS.md](docs/DEPLOY-VPS.md) |
-| 🌐 **Google Cloud Compute Engine (GCP)** | GCP VM deployment guide with Acceptable Use Policy compliance and billing safeguards | [docs/DEPLOY-GCP.md](docs/DEPLOY-GCP.md) |
-| 🛠️ **Operational Runbook & Triage** | Crash diagnosis, circuit breaker recovery, container triage, log inspection, and system health restoration | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
-| 🤝 **Contributing & Development** | Developer setup, running the 150+ smoke test suite, code guidelines, and pull request procedures | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| 🔒 **Security Policy & Reporting** | Responsible vulnerability disclosure, encrypted reporting channels, and security boundaries | [SECURITY.md](SECURITY.md) |
-| 🗺️ **Milestones & Strategic Roadmap** | Product milestones ledger, release history, and planned supervisor capabilities | [ROADMAP.md](ROADMAP.md) |
-| 📝 **Version Changelog** | Complete release notes, architectural enhancements, and bug fix ledger | [CHANGELOG.md](CHANGELOG.md) |
+| Issue | Quick Fix |
+|---|---|
+| **Not authenticated** | Run `/login_legacy <email> <password>` in Telegram or `optimai-cli auth login --legacy` in terminal. |
+| **Docker not running** | Start Docker service (`sudo systemctl start docker` or open Docker Desktop), then run `/start_node`. |
+| **Node already running** | Run `/restart_node` in Telegram, or `make stop && make start` in terminal. |
+| **Port / Container conflict** | Run `make clean-containers` or restart with `start.sh` and pick `1) Clean Install`. |
 
 ---
 
-### Attribution & Author
-**OptimAI Telegram Bot v1.9.0** — Created by **Mohammad Kaif Raja (mkr-infinity)**  
-[Telegram @mkr_infinity](https://t.me/mkr_infinity) · [Support](https://buymeacoffee.com/mkr_infinity) · UPI: `mkr-infinity@ybl`
+## 👤 Author & Support
+
+- **Author**: Mohammad Kaif Raja ([@mkr-infinity](https://github.com/mkr-infinity))
+- **Telegram**: [@mkr_infinity](https://t.me/mkr_infinity)
+- **Support**: [Buy Me a Coffee](https://buymeacoffee.com/mkr_infinity) · UPI: `mkr-infinity@ybl`
+- **Official OptimAI**: [optimai.network](https://optimai.network) · [Referral Link (Code: 646D12E7)](https://node.optimai.network/register?ref=646D12E7)
