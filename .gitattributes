@@ -23,4 +23,3 @@ Dockerfile text eol=lf
 
 # Mark docs for nicer GitHub diffs
 *.md linguist-documentation=false
-CHANGELOG.md -diff-lint
