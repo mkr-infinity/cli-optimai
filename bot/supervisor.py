@@ -25,12 +25,14 @@ everything and the persisted desired-state resumes it on the next boot).
 from __future__ import annotations
 
 import asyncio
+import collections
 import html
 import json
 import logging
 import os
 import re
 import signal
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -108,6 +110,8 @@ class Supervisor:
         self._restart_scheduled = False
         self._restart_task: asyncio.Task | None = None
         self._watch_task: asyncio.Task | None = None
+        self._pump_task: asyncio.Task | None = None
+        self._recent_output: collections.deque[str] = collections.deque(maxlen=100)
         self._internet_online = True
         self._last_net_check = time.monotonic()
 
@@ -124,6 +128,12 @@ class Supervisor:
     # ------------------------------------------------------------------
 
     
+    def get_recent_output(self, n: int = 10) -> list[str]:
+        """Return the most recent lines of output captured from the node process."""
+        if self._recent_output:
+            return list(self._recent_output)[-n:]
+        return tail_file(self._log_path, n)
+
     def reset_crashes_if_stable(self, stable_window_seconds: int = 600) -> bool:
         """Reset crash counter if process has run continuously past the stable window."""
         if self.running and self._started_at:
@@ -275,16 +285,11 @@ class Supervisor:
         env = self.cli._cli_env()
         env["PYTHONUNBUFFERED"] = "1"
         try:
-            log_file = open(self._log_path, "ab")
-            log_file.write(
-                f"\n=== node start requested at {time.strftime('%Y-%m-%d %H:%M:%S %Z')} ===\n".encode()
-            )
-            log_file.flush()
             proc = await asyncio.create_subprocess_exec(
                 self.cli.binary,
                 "node",
                 "start",
-                stdout=log_file,
+                stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env=env,
                 start_new_session=True,  # own process group -> group SIGINT
@@ -296,16 +301,53 @@ class Supervisor:
                 "Fix OPTIMAI_BIN in .env."
             )
             return
-        finally:
-            # the file handle belongs to the child after exec; close our copy
-            try:
-                log_file.close()  # type: ignore[possibly-undefined]
-            except UnboundLocalError:
-                pass
 
         self._proc = proc
         self._started_at = time.monotonic()
         log.info("Node process spawned (pid=%s)", proc.pid)
+
+        if self._pump_task is not None and not self._pump_task.done():
+            self._pump_task.cancel()
+        self._pump_task = asyncio.create_task(self._pump_output(proc))
+
+    async def _pump_output(self, proc: asyncio.subprocess.Process) -> None:
+        """Stream node process output:
+        1. Append to data/node.log (persisted file).
+        2. Print to sys.stdout (live terminal / docker logs visibility).
+        3. Buffer in memory for instant Telegram display.
+        """
+        assert proc.stdout is not None
+        banner = f"\n=== node start requested at {time.strftime('%Y-%m-%d %H:%M:%S %Z')} ===\n"
+        try:
+            with open(self._log_path, "a", encoding="utf-8", errors="replace") as f:
+                f.write(banner)
+                f.flush()
+        except OSError as exc:
+            log.warning("Could not write banner to node.log: %s", exc)
+
+        sys.stdout.write(banner)
+        sys.stdout.flush()
+
+        try:
+            with open(self._log_path, "a", encoding="utf-8", errors="replace") as f:
+                while True:
+                    line_bytes = await proc.stdout.readline()
+                    if not line_bytes:
+                        break
+                    line = line_bytes.decode("utf-8", errors="replace")
+                    f.write(line)
+                    f.flush()
+
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+
+                    stripped = line.rstrip("\r\n")
+                    if stripped:
+                        self._recent_output.append(stripped)
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            log.warning("Exception while streaming node output: %s", exc)
 
     async def check_network_connectivity(self) -> bool:
         """Lightweight connectivity check to verify outbound internet reachability."""
@@ -366,6 +408,10 @@ class Supervisor:
             self._started_at = None
             self._proc = None
             log.info("Node process stopped (exit=%s)", self._last_exit_code)
+
+        if self._pump_task is not None and not self._pump_task.done():
+            self._pump_task.cancel()
+            self._pump_task = None
 
         # 2. Stop any background Docker mining workloads/containers spawned by the node
         try:
@@ -485,12 +531,14 @@ class Supervisor:
             self._last_exit_code = proc.returncode
             self._proc = None
             self._started_at = None
+            if self._pump_task is not None and self._pump_task.done():
+                self._pump_task = None
             await self._handle_crash()
 
     async def _handle_crash(self) -> None:
         self._consecutive_crashes += 1
         self._last_crash_at = time.time()
-        tail = tail_file(self._log_path, CRASH_TAIL_LINES)
+        tail = self.get_recent_output(CRASH_TAIL_LINES)
         tail_text = "\n".join(tail[-CRASH_TAIL_LINES:])
         log.warning(
             "Node crashed (exit=%s, consecutive=%s/%s)",
