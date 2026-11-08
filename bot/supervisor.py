@@ -520,13 +520,33 @@ class Supervisor:
 
         # ---- crash (or not yet spawned) ----
         if proc is None:
-            # Desired running but nothing spawned: only the restart path
-            # handles spawning — wait for the scheduled restart task.
             if self._restart_scheduled or self._breaker_open:
                 return
-            # bot restarted while node was "running": *no* boot-time spawn
-            # happened (e.g. not authenticated at boot) -> do it here once
-            # the health info says we can; harmless if process just stopped.
+            # Check if session became authenticated (e.g. user logged in via terminal / sync)
+            if not self._authenticated and self.cli is not None and (now - self._last_cred_sync >= 10.0):
+                try:
+                    auth_ok = await self.cli.is_authenticated()
+                    if auth_ok:
+                        self._authenticated = True
+                except Exception:
+                    pass
+
+            is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
+            docker_ready = (
+                self._docker_ok
+                or is_termux
+                or os.path.exists("/var/run/docker.sock")
+                or (self.cfg is not None and self.cfg.is_local)
+            )
+
+            if self._authenticated and docker_ready:
+                log.info("Spawning node under desired=running state (authenticated & docker ready)")
+                await self._spawn()
+                await self._alert(
+                    "🚀 <b>Mining Started Automatically!</b>\n"
+                    "Authenticated OptimAI session detected; official node process is running in 24/7 background session."
+                )
+            return
         else:
             self._last_exit_code = proc.returncode
             self._proc = None

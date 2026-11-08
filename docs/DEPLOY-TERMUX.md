@@ -182,16 +182,24 @@ Once running in Termux, open your bot in Telegram and use:
 
 ---
 
-### 3. Process Killed When Phone Screen Turns Off
-* **Cause**: Android OS Battery Optimization or Android 12+ "Phantom Process Killer".
+### 3. Process Killed When Phone Screen Turns Off (Phantom Process Killer)
+* **Cause**: Android OS Battery Optimization or Android 12+ "Phantom Process Killer" terminating background child processes.
 * **Fix**:
   1. Run the wake lock command:
      ```bash
      termux-wake-lock
      ```
      *(A persistent notification will appear in your status bar confirming CPU stays active)*.
-  2. Go to **Android Settings** → **Apps** → **Termux** → **Battery** → Select **Unrestricted**.
-  3. On Samsung/Xiaomi/OnePlus: Add Termux to "Never sleeping apps" / disable "MIUI battery saver".
+  2. Go to **Android Settings** → **Apps** → **Termux** → **Battery** → Select **Unrestricted** (or "Don't optimize").
+  3. **For Android 14 and newer (No PC needed)**:
+     * Enable **Developer Options** (Settings → About Phone → tap "Build Number" 7 times).
+     * Open **Developer Options** → Toggle **Disable child process restrictions** to **ON**.
+  4. **For Android 12 & 13 (via ADB)**:
+     * Connect your phone to a PC with ADB and execute:
+       ```bash
+       adb shell settings put global activity_manager_constants max_phantom_processes 2147483647
+       ```
+  5. On Samsung/Xiaomi/OnePlus: Add Termux to "Never sleeping apps" / disable "MIUI battery saver".
 
 ---
 

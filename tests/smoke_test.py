@@ -384,6 +384,19 @@ check(
     f"out={p_login_bad.stdout}",
 )
 
+p_login_coord = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "prompt-login.sh")} && printf "2\\nuser@example.com\\ngoodpass\\n" | SUPPRESS_DIRECT_NODE_START=true prompt_account_login "{STUB}"'],
+    cwd=ROOT,
+    env=dict(os.environ, OPTIMAI_STUB_AUTH_FILE=prompt_auth_file),
+    capture_output=True,
+    text=True,
+)
+check(
+    "prompt: scripts/prompt-login.sh suppresses standalone screen when coordinated with bot supervisor",
+    p_login_coord.returncode == 0 and "Telegram Bot supervisor will manage and auto-start" in p_login_coord.stdout,
+    f"out={p_login_coord.stdout}",
+)
+
 # Test interactive env prompt intake with piped values
 test_env_path = os.path.join(TMP, "test_interactive.env")
 with open(test_env_path, "w", encoding="utf-8") as f:
@@ -672,6 +685,17 @@ async def supervisor_checks() -> None:
         "supervisor: set_notify_rewards(True) updates setting and snapshot",
         sup2.notify_rewards is True and sup2.snapshot()["notify_rewards"] is True,
     )
+
+    # Test supervisor auto-spawning when authenticated in desired=running state
+    sup_autospawn = Supervisor(cli, data_dir, state_path, log_path, alert_fn=alert)
+    sup_autospawn.desired = "running"
+    sup_autospawn.update_health(authenticated=True, docker_ok=True)
+    await sup_autospawn._tick()
+    check(
+        "supervisor: auto-spawns node process when authenticated in desired=running state",
+        sup_autospawn.running and sup_autospawn._proc is not None,
+    )
+    await sup_autospawn.request_stop()
 
     # fmt_uptime formatting
     check(

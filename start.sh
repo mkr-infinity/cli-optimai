@@ -55,6 +55,51 @@ if [ -n "${TERMUX_VERSION:-}" ] || [ -d "/data/data/com.termux" ]; then
   IS_TERMUX=true
 fi
 
+# Check if Telegram credentials are configured in .env
+HAS_TELEGRAM_TOKEN=false
+if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null && grep -q '^TELEGRAM_ALLOWED_IDS=[0-9]' .env 2>/dev/null; then
+  HAS_TELEGRAM_TOKEN=true
+fi
+
+# If Telegram credentials are not configured, start the official OptimAI mining node directly
+if [ "$HAS_TELEGRAM_TOKEN" = false ]; then
+  printf "\n${C_BOLD}======================================================================${C_OFF}\n"
+  printf "${C_CYAN}  ⛏️  Starting Official OptimAI Node (optimai-cli node start)...${C_OFF}\n"
+  printf "${C_BOLD}======================================================================${C_OFF}\n"
+  printf "  Notice: Telegram Bot credentials not configured in .env.\n"
+  printf "  Starting the official OptimAI mining node directly in background...\n\n"
+
+  CLI_BIN="optimai-cli"
+  if ! command -v "$CLI_BIN" >/dev/null 2>&1; then
+    if [ -x "/usr/local/bin/optimai-cli" ]; then
+      CLI_BIN="/usr/local/bin/optimai-cli"
+    elif [ -x "$HOME/.local/bin/optimai-cli" ]; then
+      CLI_BIN="$HOME/.local/bin/optimai-cli"
+    fi
+  fi
+
+  if command -v screen >/dev/null 2>&1; then
+    screen -dmS optimai "$CLI_BIN" node start
+    printf "  ${C_GREEN}[🚀] OptimAI Node running in screen session!${C_OFF}\n"
+    printf "  • Command:        ${C_CYAN}%s node start${C_OFF}\n" "$CLI_BIN"
+    printf "  • View Terminal:  ${C_CYAN}screen -r optimai${C_OFF} (Detach: Ctrl+A then D)\n"
+    printf "  • Check Status:   ${C_CYAN}%s node status${C_OFF}\n" "$CLI_BIN"
+    printf "  • View Rewards:   ${C_CYAN}%s rewards balance${C_OFF}\n" "$CLI_BIN"
+    printf "  • Stop Node:      Press ${C_CYAN}Ctrl+C${C_OFF} in screen session\n\n"
+  else
+    mkdir -p ./data 2>/dev/null || true
+    nohup "$CLI_BIN" node start > ./data/node.log 2>&1 </dev/null &
+    printf "  ${C_GREEN}[🚀] OptimAI Node started in background (PID %s)!${C_OFF}\n" "$!"
+    printf "  • Command:      ${C_CYAN}%s node start${C_OFF}\n" "$CLI_BIN"
+    printf "  • Check Status: ${C_CYAN}%s node status${C_OFF}\n" "$CLI_BIN"
+    printf "  • View Rewards: ${C_CYAN}%s rewards balance${C_OFF}\n\n" "$CLI_BIN"
+  fi
+  printf "  💡 Tip: To enable 24/7 Telegram Remote Bot control, add your token to .env:\n"
+  printf "     ${C_YELLOW}nano .env${C_OFF} -> set TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS\n"
+  printf "     Then run: ${C_GREEN}bash start.sh${C_OFF}\n\n"
+  exit 0
+fi
+
 DOCKER_AVAILABLE=false
 if [ "$IS_TERMUX" = false ] && command -v docker >/dev/null 2>&1; then
   if [ -S /var/run/docker.sock ] || docker info >/dev/null 2>&1; then
@@ -62,53 +107,10 @@ if [ "$IS_TERMUX" = false ] && command -v docker >/dev/null 2>&1; then
   fi
 fi
 
-# 3. Launch
+# 3. Launch Both Bot and Miner
 if [ "$DOCKER_AVAILABLE" = true ]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   REUSE_EXISTING=false
-
-  HAS_TELEGRAM_TOKEN=false
-  if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
-    HAS_TELEGRAM_TOKEN=true
-  fi
-
-  if [ "$HAS_TELEGRAM_TOKEN" = false ]; then
-    printf "\n${C_BOLD}======================================================================${C_OFF}\n"
-    printf "${C_CYAN}  ⛏️  Starting Official OptimAI Node (optimai-cli node start)...${C_OFF}\n"
-    printf "${C_BOLD}======================================================================${C_OFF}\n"
-    printf "  Notice: Telegram Bot credentials not configured in .env.\n"
-    printf "  Starting the official OptimAI mining node directly in background...\n\n"
-
-    CLI_BIN="optimai-cli"
-    if ! command -v "$CLI_BIN" >/dev/null 2>&1; then
-      if [ -x "/usr/local/bin/optimai-cli" ]; then
-        CLI_BIN="/usr/local/bin/optimai-cli"
-      elif [ -x "$HOME/.local/bin/optimai-cli" ]; then
-        CLI_BIN="$HOME/.local/bin/optimai-cli"
-      fi
-    fi
-
-    if command -v screen >/dev/null 2>&1; then
-      screen -dmS optimai "$CLI_BIN" node start
-      printf "  ${C_GREEN}[🚀] OptimAI Node running in screen session!${C_OFF}\n"
-      printf "  • Command:        ${C_CYAN}%s node start${C_OFF}\n" "$CLI_BIN"
-      printf "  • View Terminal:  ${C_CYAN}screen -r optimai${C_OFF} (Detach: Ctrl+A then D)\n"
-      printf "  • Check Status:   ${C_CYAN}%s node status${C_OFF}\n" "$CLI_BIN"
-      printf "  • View Rewards:   ${C_CYAN}%s rewards balance${C_OFF}\n" "$CLI_BIN"
-      printf "  • Stop Node:      Press ${C_CYAN}Ctrl+C${C_OFF} in screen session\n\n"
-    else
-      mkdir -p ./data 2>/dev/null || true
-      nohup "$CLI_BIN" node start > ./data/node.log 2>&1 </dev/null &
-      printf "  ${C_GREEN}[🚀] OptimAI Node started in background (PID %s)!${C_OFF}\n" "$!"
-      printf "  • Command:      ${C_CYAN}%s node start${C_OFF}\n" "$CLI_BIN"
-      printf "  • Check Status: ${C_CYAN}%s node status${C_OFF}\n" "$CLI_BIN"
-      printf "  • View Rewards: ${C_CYAN}%s rewards balance${C_OFF}\n\n" "$CLI_BIN"
-    fi
-    printf "  💡 Tip: To enable 24/7 Telegram Remote Bot control, add your token to .env:\n"
-    printf "     ${C_YELLOW}nano .env${C_OFF} -> set TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS\n"
-    printf "     Then run: ${C_GREEN}bash start.sh${C_OFF}\n\n"
-    exit 0
-  fi
 
   # Pre-flight container conflict check & interactive resolution
   for conflict_resolver in "$SCRIPT_DIR/scripts/handle-docker-container.sh" "scripts/handle-docker-container.sh"; do
@@ -182,7 +184,13 @@ else
   fi
 
   if command -v screen >/dev/null 2>&1; then
-    screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && $PY_BIN -m bot.main"
+    if screen -ls 2>/dev/null | grep -q "optimai"; then
+      warn "An OptimAI screen session ('optimai') is already active."
+      info "Attaching or viewing: screen -r optimai"
+      info "To restart cleanly:   screen -S optimai -X quit && bash start.sh"
+    else
+      screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && $PY_BIN -m bot.main"
+    fi
     printf "\n${C_BOLD}======================================================================${C_OFF}\n"
     printf "${C_GREEN}  🚀 OptimAI Bot & Miner Started in Background Screen Session!${C_OFF}\n"
     printf "${C_BOLD}======================================================================${C_OFF}\n"

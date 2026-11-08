@@ -23,6 +23,20 @@ start_optimai_node() {
     fi
   fi
 
+  # If Telegram credentials are configured or SUPPRESS_DIRECT_NODE_START is true,
+  # the 24/7 supervisor bot will manage and auto-start both the bot and the mining node.
+  HAS_TELEGRAM_TOKEN=false
+  if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null && grep -q '^TELEGRAM_ALLOWED_IDS=[0-9]' .env 2>/dev/null; then
+    HAS_TELEGRAM_TOKEN=true
+  fi
+
+  if [ "${SUPPRESS_DIRECT_NODE_START:-false}" = "true" ] || [ "$HAS_TELEGRAM_TOKEN" = "true" ]; then
+    printf "\n\033[1;32m[✓]\033[0m Official OptimAI CLI authenticated and primed!\n"
+    printf "    The 24/7 Telegram Bot supervisor will manage and auto-start both\n"
+    printf "    the Telegram bot controller and the mining node (%s node start).\n\n" "$CLI_BIN"
+    return 0
+  fi
+
   # Check if running in automated test suite
   if [ -n "${OPTIMAI_STUB_AUTH_FILE:-}" ]; then
     printf "\033[1;32m[✓]\033[0m Official OptimAI Node ready to run: %s node start\n" "$CLI_BIN"
