@@ -148,6 +148,14 @@ fi
 
 export PATH="$HOME/.local/bin:${PREFIX:-/data/data/com.termux/files/usr}/bin:$PATH"
 
+# Check if an existing session is already running
+if screen -ls 2>/dev/null | grep -q "optimai"; then
+  printf "\n\033[1;33m[!] Notice: An OptimAI screen session ('optimai') is already active.\033[0m\n"
+  printf "  • View Console:     \033[1;36mscreen -r optimai\033[0m (Detach: Ctrl+A then D)\n"
+  printf "  • Restart Cleanly:  \033[1;36mscreen -S optimai -X quit && bash run-termux.sh\033[0m\n\n"
+  exit 0
+fi
+
 # Check if Telegram credentials are configured in .env
 HAS_TELEGRAM=false
 if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null && grep -q '^TELEGRAM_ALLOWED_IDS=[0-9]' .env 2>/dev/null; then
@@ -163,7 +171,11 @@ if [ "$HAS_TELEGRAM" = true ]; then
   printf "  • Screen Session:   \033[1;36moptimai\033[0m (screen -r optimai)\n"
   printf "  • Detach Screen:    Press \033[1;36mCtrl+A then D\033[0m\n"
   printf "  • Bot Controller:   Open Telegram and send \033[1;32m/start\033[0m\n"
-  printf "  • Node Workload:    Running 24/7 with auto-restart\n\n"
+  printf "  • AI Miner Node:    \033[1;32mRUNNING\033[0m (Auto-started with NODE_AUTO_START=true)\n\n"
+  printf "  💡 Android 24/7 Mining Optimizations:\n"
+  printf "     • Battery: Set Termux app battery to 'Unrestricted' in Android Settings\n"
+  printf "     • Android 14+: Developer Options -> 'Disable child process restrictions' (ON)\n"
+  printf "     • Android 12/13: Run in ADB: adb shell settings put global activity_manager_constants max_phantom_processes 2147483647\n\n"
 else
   CLI_BIN="optimai-cli"
   if ! command -v "$CLI_BIN" >/dev/null 2>&1; then
@@ -205,7 +217,7 @@ fi
 
 if [ -f "$SCRIPT_DIR/scripts/prompt-login.sh" ]; then
   . "$SCRIPT_DIR/scripts/prompt-login.sh"
-  prompt_account_login "$CLI_CAND"
+  SUPPRESS_DIRECT_NODE_START=true prompt_account_login "$CLI_CAND"
 fi
 
 if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then

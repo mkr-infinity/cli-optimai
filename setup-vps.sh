@@ -244,7 +244,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/scripts/prompt-login.sh" ]; then
   . "$SCRIPT_DIR/scripts/prompt-login.sh"
-  prompt_account_login "optimai-cli"
+  SUPPRESS_DIRECT_NODE_START=true prompt_account_login "optimai-cli"
 fi
 if [ -f "$SCRIPT_DIR/scripts/sync-credentials.sh" ]; then
   bash "$SCRIPT_DIR/scripts/sync-credentials.sh" >/dev/null 2>&1 || true
@@ -255,8 +255,7 @@ if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then
   prompt_telegram_credentials "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.example" "bash '$SCRIPT_DIR/start.sh'"
 fi
 
-if [ ! -f .env ] || ! grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
-  printf "\n${C_GREEN}Setup Complete! To start your bot & mining node:${C_OFF}\n"
-  printf "  1. Configure credentials:  ${C_YELLOW}nano .env${C_OFF}\n"
-  printf "  2. Start bot & miner:      ${C_GREEN}bash start.sh${C_OFF}\n\n"
+# Auto-start check: if not already running, launch start.sh
+if ! screen -ls 2>/dev/null | grep -q "optimai" && ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "optimai"; then
+  bash "$SCRIPT_DIR/start.sh"
 fi

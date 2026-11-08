@@ -181,13 +181,10 @@ def check_screen_session() -> tuple[bool, str]:
 
 async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> tuple[str, InlineKeyboardMarkup]:
     """Construct an informative welcome and status overview card with action buttons."""
-    (auth_res, (docker_ok, docker_ver)) = await asyncio.gather(
-        cli.auth_status(),
+    (authenticated, (docker_ok, docker_ver)) = await asyncio.gather(
+        cli.is_authenticated(),
         cli.docker_server_version(),
     )
-    rc, out, err = auth_res
-    auth_text = out + err
-    authenticated = rc == 0 and NOT_AUTHENTICATED_MARK not in auth_text
     sup.update_health(authenticated, docker_ok)
     snap = sup.snapshot()
 
@@ -313,13 +310,13 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
-    (auth_res, (docker_ok, _)) = await asyncio.gather(
+    (auth_res, authenticated, (docker_ok, _)) = await asyncio.gather(
         cli.auth_status(),
+        cli.is_authenticated(),
         cli.docker_server_version(),
     )
     rc, out, err = auth_res
     auth_text = out + err
-    authenticated = rc == 0 and NOT_AUTHENTICATED_MARK not in auth_text
     sup.update_health(authenticated, docker_ok)
     snap = sup.snapshot()
 
@@ -490,14 +487,18 @@ async def cmd_restart_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def cmd_rewards(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
     ok, text = await cli.rewards_balance()
-    body = text if text else "(empty response)"
-    if not ok and "Not authenticated" in body:
+    body = (text or "").strip() or "(empty response)"
+    low = body.lower()
+    if not ok and any(k in low for k in ("not authenticated", "unauthenticated", "not logged in")):
         await _reply(
             update,
-            f"<pre>{html.escape(body)}</pre>\n\n💡 Not authenticated — send /login first.",
+            f"💰 <b>OptimAI Rewards:</b>\n\n<pre>{html.escape(body)}</pre>\n\n💡 <i>You are not logged in yet — send /login or /login --legacy to view rewards.</i>",
         )
+    elif ok:
+        header = "💰 <b>OptimAI Mining Rewards & Points Balance:</b>\n\n"
+        await _send_pre(lambda msg, **kw: _reply(update, f"{header}{msg}", **kw), body)
     else:
-        await _send_pre(lambda msg, **kw: _reply(update, msg, **kw), body)
+        await _send_pre(lambda msg, **kw: _reply(update, f"⚠️ <b>Rewards Balance Output:</b>\n\n{msg}", **kw), body)
 
 
 async def cmd_rewardadded(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -543,7 +544,14 @@ async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     path = cfg.node_log_path()
     lines = tail_file(path, cfg.log_tail_lines)
     if not lines:
-        await _reply(update, "📝 node.log is empty.")
+        lines = sup.get_recent_output(cfg.log_tail_lines)
+    if not lines:
+        await _reply(
+            update,
+            "📝 <b>Node Log Output:</b>\n"
+            "<i>node.log is currently empty.</i>\n\n"
+            "If the node was recently started, logs will appear shortly. Use /status to check status or /watch for live stream.",
+        )
         return
     await _send_pre(lambda msg, **kw: _reply(update, msg, **kw), "\n".join(lines))
 
@@ -1076,17 +1084,13 @@ async def on_screen_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             await cmd_screen(update, context)
     elif data == "screen_start":
-        docker_ok, _ = await cli.docker_server_version()
-        if not docker_ok:
-            if query.message:
-                await query.message.reply_text("⛔️ Cannot start node: Docker daemon not reachable.")
-            return
-        await sup.request_start()
+        await cmd_start_node(update, context)
         if query.message and query.message.text and "Welcome" in query.message.text:
-            text, keyboard = await build_welcome_card(cfg, cli, sup)
-            await query.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-        else:
-            await cmd_screen(update, context)
+            try:
+                text, keyboard = await build_welcome_card(cfg, cli, sup)
+                await query.message.edit_text(text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+            except Exception:
+                pass
     elif data == "screen_watch":
         await cmd_watch(update, context)
     elif data == "welcome_status":

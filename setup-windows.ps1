@@ -132,7 +132,15 @@ try {
             if ($methodChoice -eq "1") {
                 Write-Host "`n==> Launching Browser Login (optimai-cli auth login)..." -ForegroundColor Green
                 & $optimaiExe auth login --no-open --paste
-                Write-Host "`n[✓] Login flow complete.`n" -ForegroundColor Green
+                $authCheck = & $optimaiExe auth status 2>&1
+                if ($authCheck -match "not authenticated|not logged in|unauthenticated" -or [string]::IsNullOrWhiteSpace($authCheck)) {
+                    Write-Host "`n[❌] Authentication failed: $authCheck" -ForegroundColor Red
+                    Write-Host "    Please verify your authorization code or URL, then try again.`n" -ForegroundColor Yellow
+                } elseif ($authCheck -match "authenticated|logged in|user:") {
+                    Write-Host "`n[✓] Authenticated successfully with OptimAI Network!`n" -ForegroundColor Green
+                } else {
+                    Write-Host "`n[❌] Authentication failed: $authCheck`n" -ForegroundColor Red
+                }
             } elseif ($methodChoice -eq "2") {
                 Write-Host "`n==> Legacy Login (optimai-cli auth login --legacy):" -ForegroundColor Green
                 Write-Host "  Enter your OptimAI email: " -NoNewline
@@ -140,8 +148,16 @@ try {
                 Write-Host "  Enter your OptimAI password: " -NoNewline
                 $pwdInput = [Console]::ReadLine()
                 if ($emailInput -and $pwdInput) {
-                    "$emailInput`n$pwdInput" | & $optimaiExe auth login --legacy
-                    Write-Host "`n[✓] Legacy login submitted.`n" -ForegroundColor Green
+                    $loginOut = "$emailInput`n$pwdInput" | & $optimaiExe auth login --legacy 2>&1
+                    $authCheck = & $optimaiExe auth status 2>&1
+                    if ($authCheck -match "not authenticated|not logged in|unauthenticated" -or [string]::IsNullOrWhiteSpace($authCheck)) {
+                        Write-Host "`n[❌] Authentication failed with OptimAI Network: $loginOut" -ForegroundColor Red
+                        Write-Host "    The node reported that the email or password entered is incorrect.`n" -ForegroundColor Yellow
+                    } elseif ($authCheck -match "authenticated|logged in|user:") {
+                        Write-Host "`n[✓] Legacy login submitted: Authenticated successfully with OptimAI Network!`n" -ForegroundColor Green
+                    } else {
+                        Write-Host "`n[❌] Authentication failed: $authCheck`n" -ForegroundColor Red
+                    }
                 } else {
                     Write-Host "`n[!] Email or password empty. Login skipped.`n" -ForegroundColor Yellow
                 }

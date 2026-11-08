@@ -19,6 +19,19 @@ if not exist .env (
 
 set NODE_AUTO_START=true
 
+findstr /R "^TELEGRAM_BOT_TOKEN=[0-9]" .env >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo ======================================================================
+    echo   ⛏️  Starting Official OptimAI Node (optimai-cli node start)...
+    echo ======================================================================
+    echo   Notice: Telegram Bot credentials not configured in .env.
+    echo   Starting the official OptimAI mining node directly...
+    echo.
+    optimai-cli node start
+    exit /b 0
+)
+
 if not exist data\data mkdir data\data >nul 2>&1
 if not exist data\home mkdir data\home >nul 2>&1
 
