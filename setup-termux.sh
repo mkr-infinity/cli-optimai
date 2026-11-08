@@ -47,9 +47,9 @@ if command -v pkg >/dev/null 2>&1; then
   pkg update -y -o Dpkg::Options::="--force-confold" || {
     warn "pkg update returned a mirror warning. If packages fail, run 'termux-change-repo'."
   }
-  pkg install -y -o Dpkg::Options::="--force-confold" python git screen curl clang libffi openssl make proot proot-distro termux-tools || {
+  pkg install -y -o Dpkg::Options::="--force-confold" python git screen curl clang libffi openssl make proot proot-distro termux-tools docker || {
     warn "Retrying with basic package set..."
-    pkg install -y python git screen curl proot-distro termux-tools
+    pkg install -y python git screen curl proot-distro termux-tools docker || pkg install -y python git screen curl proot-distro termux-tools
   }
 elif command -v apt-get >/dev/null 2>&1; then
   apt-get update -y
@@ -102,14 +102,18 @@ EOF
   aarch64|arm64)
     info "ARM64 Android device detected."
     info "Upstream distributes x86_64 binaries. PRoot automated bridge available."
-    if [ -t 0 ]; then
+    if proot-distro list 2>/dev/null | grep -q "ubuntu.*installed"; then
+      info "PRoot Ubuntu environment already installed. Ensuring x86_64 emulation bridge..."
+      bash setup-termux-proot.sh
+    elif [ -t 0 ]; then
       printf "\n${C_CYAN}Would you like to install PRoot Ubuntu x86_64 emulation for on-device mining now? [Y/n]: ${C_OFF}"
       read -r REPLY || REPLY="y"
       if [[ ! "$REPLY" =~ ^[Nn]$ ]]; then
         bash setup-termux-proot.sh
       fi
     else
-      info "Non-interactive shell. Run 'bash setup-termux-proot.sh' to install on-device PRoot mining bridge."
+      info "Non-interactive shell. Running setup-termux-proot.sh..."
+      bash setup-termux-proot.sh || true
     fi
     ;;
   *)
@@ -131,19 +135,55 @@ fi
 # Create run-termux.sh helper
 cat <<'EOF' > run-termux.sh
 #!/usr/bin/env bash
+# ============================================================
+# run-termux.sh — Universal Launcher for Android Termux
+# OptimAI Telegram Bot & AI Miner (v1.9.0)
+# ============================================================
+set -u
+
 # Acquire wake lock so Android does not kill the process
 if command -v termux-wake-lock >/dev/null 2>&1; then
   termux-wake-lock
 fi
 
-# Run in detached screen session with auto-start enabled
-screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && .venv/bin/python -m bot.main"
+export PATH="$HOME/.local/bin:${PREFIX:-/data/data/com.termux/files/usr}/bin:$PATH"
 
-echo "✅ OptimAI Telegram Bot launched in background screen session!"
-echo "• View terminal session:   screen -r optimai"
-echo "• Detach from session:     Press Ctrl+A then D"
-echo "• View live logs:          make logs"
-echo "• Manage node from phone:  Open your bot in Telegram"
+# Check if Telegram credentials are configured in .env
+HAS_TELEGRAM=false
+if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null && grep -q '^TELEGRAM_ALLOWED_IDS=[0-9]' .env 2>/dev/null; then
+  HAS_TELEGRAM=true
+fi
+
+if [ "$HAS_TELEGRAM" = true ]; then
+  screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && .venv/bin/python -m bot.main"
+
+  printf "\n\033[1;32m============================================================\033[0m\n"
+  printf "\033[1;32m  🚀 OptimAI Telegram Bot & Miner Started in Background!\033[0m\n"
+  printf "\033[1;32m============================================================\033[0m\n"
+  printf "  • Screen Session:   \033[1;36moptimai\033[0m (screen -r optimai)\n"
+  printf "  • Detach Screen:    Press \033[1;36mCtrl+A then D\033[0m\n"
+  printf "  • Bot Controller:   Open Telegram and send \033[1;32m/start\033[0m\n"
+  printf "  • Node Workload:    Running 24/7 with auto-restart\n\n"
+else
+  CLI_BIN="optimai-cli"
+  if ! command -v "$CLI_BIN" >/dev/null 2>&1; then
+    if [ -x "$HOME/.local/bin/optimai-cli" ]; then
+      CLI_BIN="$HOME/.local/bin/optimai-cli"
+    elif [ -x "${PREFIX:-/data/data/com.termux/files/usr}/bin/optimai-cli" ]; then
+      CLI_BIN="${PREFIX:-/data/data/com.termux/files/usr}/bin/optimai-cli"
+    fi
+  fi
+
+  screen -dmS optimai bash -c "cd $(pwd) && $CLI_BIN node start"
+  printf "\n\033[1;32m============================================================\033[0m\n"
+  printf "\033[1;32m  ⛏️  OptimAI Miner Node Running in Background (No Bot)!\033[0m\n"
+  printf "\033[1;32m============================================================\033[0m\n"
+  printf "  • Command:          \033[1;36m%s node start\033[0m\n" "$CLI_BIN"
+  printf "  • View Console:     \033[1;36mscreen -r optimai\033[0m\n"
+  printf "  • Check Status:     \033[1;36m%s node status\033[0m\n" "$CLI_BIN"
+  printf "  • View Rewards:     \033[1;36m%s rewards balance\033[0m\n" "$CLI_BIN"
+  printf "  • Add Bot Later:    Configure \033[1;36mnano .env\033[0m with token and re-run \033[1;32mbash run-termux.sh\033[0m\n\n"
+fi
 EOF
 chmod +x run-termux.sh
 
@@ -154,9 +194,18 @@ fi
 
 # 7. Interactive Credentials Intake & Auto-Launch
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLI_CAND="optimai-cli"
+if ! command -v "$CLI_CAND" >/dev/null 2>&1; then
+  if [ -x "$HOME/.local/bin/optimai-cli" ]; then
+    CLI_CAND="$HOME/.local/bin/optimai-cli"
+  elif [ -x "${PREFIX:-/data/data/com.termux/files/usr}/bin/optimai-cli" ]; then
+    CLI_CAND="${PREFIX:-/data/data/com.termux/files/usr}/bin/optimai-cli"
+  fi
+fi
+
 if [ -f "$SCRIPT_DIR/scripts/prompt-login.sh" ]; then
   . "$SCRIPT_DIR/scripts/prompt-login.sh"
-  prompt_account_login "optimai-cli"
+  prompt_account_login "$CLI_CAND"
 fi
 
 if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then
@@ -164,11 +213,7 @@ if [ -f "$SCRIPT_DIR/scripts/prompt-env.sh" ]; then
   prompt_telegram_credentials "$SCRIPT_DIR/.env" "$SCRIPT_DIR/.env.example" "bash '$SCRIPT_DIR/run-termux.sh'"
 fi
 
-if [ ! -f .env ] || ! grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
-  printf "\n${C_GREEN}============================================================${C_OFF}\n"
-  printf "${C_GREEN} Termux Setup Complete! ⛏️${C_OFF}\n"
-  printf " 1. Configure credentials:  nano .env\n"
-  printf " 2. Start mining bot:       bash run-termux.sh\n"
-  printf " 3. Attach to screen:       screen -r optimai\n"
-  printf "${C_GREEN}============================================================${C_OFF}\n"
+# Auto-start check: if not already running, launch run-termux.sh
+if ! screen -ls 2>/dev/null | grep -q "optimai"; then
+  bash "$SCRIPT_DIR/run-termux.sh"
 fi

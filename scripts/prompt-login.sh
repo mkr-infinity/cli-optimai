@@ -38,6 +38,11 @@ start_optimai_node() {
 
   # Check Docker requirement: "Keep Docker Desktop running before you start the node."
   DOCKER_OK=false
+  IS_TERMUX=false
+  if [ -n "${TERMUX_VERSION:-}" ] || [ -d "/data/data/com.termux" ]; then
+    IS_TERMUX=true
+  fi
+
   if [ -S /var/run/docker.sock ] || docker info >/dev/null 2>&1; then
     DOCKER_OK=true
   elif command -v systemctl >/dev/null 2>&1 && sudo -n systemctl start docker >/dev/null 2>&1; then
@@ -47,11 +52,16 @@ start_optimai_node() {
   fi
 
   if [ "$DOCKER_OK" = false ]; then
-    printf "\n\033[1;33m[!] Notice: Docker is not currently running.\033[0m\n"
-    printf "    \033[1mTip: Keep Docker Desktop (Windows/macOS) or Docker Engine (Linux) running before you start the node.\033[0m\n"
-    printf "    Once Docker is running, start your node with:\n"
-    printf "    \033[1;32m%s node start\033[0m\n\n" "$CLI_BIN"
-    return 0
+    if [ "$IS_TERMUX" = true ]; then
+      printf "\n\033[1;36m[i] Android Termux environment detected.\033[0m\n"
+      printf "    Starting official OptimAI Node via Termux / PRoot bridge (%s node start)...\n" "$CLI_BIN"
+    else
+      printf "\n\033[1;33m[!] Notice: Docker is not currently running.\033[0m\n"
+      printf "    \033[1mTip: Keep Docker Desktop (Windows/macOS) or Docker Engine (Linux) running before you start the node.\033[0m\n"
+      printf "    Once Docker is running, start your node with:\n"
+      printf "    \033[1;32m%s node start\033[0m\n\n" "$CLI_BIN"
+      return 0
+    fi
   fi
 
   printf "\n\033[1;32m==>\033[0m Starting official OptimAI Node (%s node start)...\n" "$CLI_BIN"
@@ -97,7 +107,8 @@ prompt_account_login() {
   if echo "$STATUS_OUT" | grep -qiE "not authenticated|not logged in|unauthenticated"; then
     : # Not authenticated, proceed to prompt
   elif echo "$STATUS_OUT" | grep -qiE "authenticated|logged in|user:"; then
-    printf "\n\033[1;32m[✓]\033[0m Official OptimAI CLI is already authenticated.\n"
+    printf "\n\033[1;32m[✓]\033[0m Official OptimAI CLI is already authenticated:\n"
+    printf "    • %s\n" "$STATUS_OUT"
     start_optimai_node "$CLI_BIN"
     return 0
   fi
@@ -124,8 +135,18 @@ prompt_account_login() {
         break
       fi
     done
-    printf "\n\033[1;32m[✓]\033[0m Login flow complete. Check status anytime with: %s auth status\n\n" "$CLI_BIN"
-    start_optimai_node "$CLI_BIN"
+    STATUS_CHECK="$("$CLI_BIN" auth status 2>&1 || true)"
+    if echo "$STATUS_CHECK" | grep -qiE "not authenticated|unauthenticated|not logged in" || [ -z "$STATUS_CHECK" ]; then
+      printf "\n\033[1;31m[❌] Authentication failed:\033[0m %s\n" "${STATUS_CHECK:-No authentication confirmation received}"
+      printf "    Please verify your authorization code or URL, then try again.\n\n"
+    elif echo "$STATUS_CHECK" | grep -qiE "authenticated|logged in|user:"; then
+      printf "\n\033[1;32m[✓] Authenticated successfully with OptimAI Network!\033[0m\n"
+      printf "    • %s\n\n" "$STATUS_CHECK"
+      start_optimai_node "$CLI_BIN"
+    else
+      printf "\n\033[1;31m[❌] Authentication failed:\033[0m %s\n" "$STATUS_CHECK"
+      printf "    Please verify your authorization code or URL, then try again.\n\n"
+    fi
 
   elif [ "$METHOD_CHOICE" = "2" ]; then
     printf "\n\033[1;32m==>\033[0m Legacy Login (optimai-cli auth login --legacy):\n"
@@ -150,8 +171,23 @@ prompt_account_login() {
           break
         fi
       done
-      printf "\n\033[1;32m[✓]\033[0m Legacy login submitted. Verification: %s auth status\n\n" "$CLI_BIN"
-      start_optimai_node "$CLI_BIN"
+
+      STATUS_CHECK="$("$CLI_BIN" auth status 2>&1 || true)"
+      if echo "$STATUS_CHECK" | grep -qiE "not authenticated|unauthenticated|not logged in" || [ -z "$STATUS_CHECK" ]; then
+        ERR_MSG="$(printf "%s\n" "$LOGIN_OUT" | grep -iE "error|invalid|fail|incorrect|wrong|denied" | head -n 2)"
+        printf "\n\033[1;31m[❌] Authentication failed with OptimAI Network:\033[0m %s\n" "${ERR_MSG:-$STATUS_CHECK}"
+        printf "    The node reported that the email or password entered is incorrect.\n"
+        printf "    Please re-run 'bash start.sh' or '%s auth login --legacy' with the correct details.\n\n" "$CLI_BIN"
+      elif echo "$STATUS_CHECK" | grep -qiE "authenticated|logged in|user:"; then
+        printf "\n\033[1;32m[✓]\033[0m Legacy login submitted: Authenticated successfully with OptimAI Network!\n"
+        printf "    • %s\n\n" "$STATUS_CHECK"
+        start_optimai_node "$CLI_BIN"
+      else
+        ERR_MSG="$(printf "%s\n" "$LOGIN_OUT" | grep -iE "error|invalid|fail|incorrect|wrong|denied" | head -n 2)"
+        printf "\n\033[1;31m[❌] Authentication failed with OptimAI Network:\033[0m %s\n" "${ERR_MSG:-$STATUS_CHECK}"
+        printf "    The node reported that the email or password entered is incorrect.\n"
+        printf "    Please re-run 'bash start.sh' or '%s auth login --legacy' with the correct details.\n\n" "$CLI_BIN"
+      fi
     else
       printf "\n\033[1;33m[!] Email or password empty. Login skipped.\033[0m\n\n"
     fi
