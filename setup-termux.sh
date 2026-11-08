@@ -9,6 +9,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 C_GREEN='\033[1;32m'
 C_YELLOW='\033[1;33m'
 C_CYAN='\033[1;36m'
@@ -102,14 +105,24 @@ EOF
   aarch64|arm64)
     info "ARM64 Android device detected."
     info "Upstream distributes x86_64 binaries. PRoot automated bridge available."
-    if proot-distro list 2>/dev/null | grep -q "ubuntu.*installed"; then
+    UBUNTU_INSTALLED=false
+    if proot-distro list 2>/dev/null | grep -iE "ubuntu.*(installed|\[installed\])"; then
+      UBUNTU_INSTALLED=true
+    elif [ -d "${PREFIX:-/data/data/com.termux/files/usr}/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
+      UBUNTU_INSTALLED=true
+    elif proot-distro login ubuntu -- true 2>/dev/null; then
+      UBUNTU_INSTALLED=true
+    fi
+
+    if [ "$UBUNTU_INSTALLED" = true ]; then
       info "PRoot Ubuntu environment already installed. Ensuring x86_64 emulation bridge..."
-      bash setup-termux-proot.sh
+      bash setup-termux-proot.sh || true
     elif [ -t 0 ]; then
-      printf "\n${C_CYAN}Would you like to install PRoot Ubuntu x86_64 emulation for on-device mining now? [Y/n]: ${C_OFF}"
-      read -r REPLY || REPLY="y"
+      printf "\n${C_CYAN}Would you like to install PRoot Ubuntu x86_64 emulation for on-device mining now? [Y/n] (Auto-accepting in 20s): ${C_OFF}"
+      read -r -t 20 REPLY || REPLY="y"
+      REPLY="${REPLY:-y}"
       if [[ ! "$REPLY" =~ ^[Nn]$ ]]; then
-        bash setup-termux-proot.sh
+        bash setup-termux-proot.sh || true
       fi
     else
       info "Non-interactive shell. Running setup-termux-proot.sh..."
@@ -141,6 +154,9 @@ cat <<'EOF' > run-termux.sh
 # ============================================================
 set -u
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # Acquire wake lock so Android does not kill the process
 if command -v termux-wake-lock >/dev/null 2>&1; then
   termux-wake-lock
@@ -162,8 +178,13 @@ if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null && grep -
   HAS_TELEGRAM=true
 fi
 
+PY_BIN="python3"
+if [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+  PY_BIN="$SCRIPT_DIR/.venv/bin/python"
+fi
+
 if [ "$HAS_TELEGRAM" = true ]; then
-  screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && .venv/bin/python -m bot.main"
+  screen -dmS optimai bash -c "cd '$SCRIPT_DIR' && export NODE_AUTO_START=true && '$PY_BIN' -m bot.main"
 
   printf "\n\033[1;32m============================================================\033[0m\n"
   printf "\033[1;32m  🚀 OptimAI Telegram Bot & Miner Started in Background!\033[0m\n"
@@ -186,7 +207,7 @@ else
     fi
   fi
 
-  screen -dmS optimai bash -c "cd $(pwd) && $CLI_BIN node start"
+  screen -dmS optimai bash -c "cd '$SCRIPT_DIR' && '$CLI_BIN' node start"
   printf "\n\033[1;32m============================================================\033[0m\n"
   printf "\033[1;32m  ⛏️  OptimAI Miner Node Running in Background (No Bot)!\033[0m\n"
   printf "\033[1;32m============================================================\033[0m\n"
@@ -229,3 +250,15 @@ fi
 if ! screen -ls 2>/dev/null | grep -q "optimai"; then
   bash "$SCRIPT_DIR/run-termux.sh"
 fi
+
+printf "\n\033[1;32m============================================================\033[0m\n"
+printf "\033[1;32m  🎉 Android Termux Setup Complete! ⛏️\033[0m\n"
+printf "\033[1;32m============================================================\033[0m\n"
+printf "  Your OptimAI 24/7 supervisor bot & miner node are ready!\n\n"
+printf "  \033[1mQuick Reference Guide:\033[0m\n"
+printf "  • \033[1;36mStart / Resume:\033[0m      bash run-termux.sh (or bash start.sh)\n"
+printf "  • \033[1;36mView Live Session:\033[0m   screen -r optimai (Detach: Ctrl+A then D)\n"
+printf "  • \033[1;36mTelegram Control:\033[0m    Send /start in Telegram (/status, /rewards, /logs)\n"
+printf "  • \033[1;36mSign in to Node:\033[0m     Send /login in Telegram or optimai-cli auth login\n"
+printf "  • \033[1;36mStop Mining:\033[0m         Send /stop_node in Telegram or screen -S optimai -X quit\n"
+printf "\033[1;32m============================================================\033[0m\n\n"

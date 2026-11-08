@@ -9,6 +9,9 @@
 
 set -u
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 C_GREEN='\033[1;32m'
 C_YELLOW='\033[1;33m'
 C_CYAN='\033[1;36m'
