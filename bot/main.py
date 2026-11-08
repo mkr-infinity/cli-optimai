@@ -37,6 +37,7 @@ from telegram.ext import (
 
 import bot
 _BOT_START_TIME = time.time()
+_BOT_START_MONOTONIC = time.monotonic()
 from bot.compatibility import (
     check_device_compatibility,
     download_compatible_cli,
@@ -53,6 +54,7 @@ from bot.config import (
     mask_secret,
     restore_credentials_from_database,
     save_credential_database,
+    sync_all_credentials,
     sync_local_credentials,
     update_env_file,
 )
@@ -129,7 +131,12 @@ async def _reply(update: Update, text: str, keyboard: InlineKeyboardMarkup | Non
 
 def _wd(context: ContextTypes.DEFAULT_TYPE) -> Tuple[Config, OptimaiCLI, Supervisor, UnauthorizedGate, LoginManager]:
     bd = context.bot_data
-    return bd["cfg"], bd["cli"], bd["sup"], bd["gate"], bd["login"]
+    cfg = bd["cfg"]
+    try:
+        sync_all_credentials(cfg, force=False)
+    except Exception:
+        pass
+    return cfg, bd["cli"], bd["sup"], bd["gate"], bd["login"]
 
 
 # ----------------------------------------------------------------------
@@ -200,7 +207,7 @@ async def build_welcome_card(cfg: Config, cli: OptimaiCLI, sup: Supervisor) -> t
     )
 
     text = (
-        f"👋 <b>Welcome to OptimAI Telegram Node v{bot.__version__}</b> ⛏️\n"
+        f"👋 <b>Welcome to OptimAI Telegram Bot v{bot.__version__}</b> ⛏️\n"
         "<i>Autonomous 24/7 Mining Supervisor & Remote Controller</i>\n\n"
         "📊 <b>System & Node Overview:</b>\n"
         f"• <b>Node Status:</b> {node_status_badge}\n"
@@ -256,7 +263,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, _cli, _sup, _gate, _login = _wd(context)
     help_text = (
-        "<b>OptimAI Telegram Node — commands</b>\n\n"
+        "<b>OptimAI Telegram Bot — commands</b>\n\n"
         "<b>Node Management:</b>\n"
         "/start — welcome overview, system health & quick controls\n"
         "/start_node (or /startnode) — start the node and Docker AI mining\n"
@@ -368,7 +375,9 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 async def cmd_start_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
     docker_ok, _ = await cli.docker_server_version()
-    if not docker_ok:
+    is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
+    docker_available = docker_ok or os.path.exists("/var/run/docker.sock") or cfg.is_local or is_termux
+    if not docker_available:
         await _reply(
             update,
             "⛔️ Cannot start node: no Docker daemon here. Deploy on a VPS with "
@@ -376,6 +385,7 @@ async def cmd_start_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "control-plane works (/login /rewards /logs /status).",
         )
         return
+    sync_all_credentials(cfg, force=False)
     if cfg.is_local:
         sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
     if not await cli.is_authenticated():
@@ -396,7 +406,9 @@ async def cmd_start_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def cmd_stop_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
     docker_ok, _ = await cli.docker_server_version()
-    if not docker_ok and sup._pid() is None:
+    is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
+    docker_available = docker_ok or os.path.exists("/var/run/docker.sock") or cfg.is_local or is_termux
+    if not docker_available and sup._pid() is None:
         await _reply(
             update,
             "⛔️ Cannot control the node here: no Docker daemon (Railway "
@@ -414,7 +426,9 @@ async def cmd_stop_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def cmd_restart_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cfg, cli, sup, _gate, _login = _wd(context)
     docker_ok, _ = await cli.docker_server_version()
-    if not docker_ok:
+    is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
+    docker_available = docker_ok or os.path.exists("/var/run/docker.sock") or cfg.is_local or is_termux
+    if not docker_available:
         await _reply(
             update,
             "⛔️ Cannot restart node: no Docker daemon here. Deploy on a VPS with "
@@ -422,6 +436,7 @@ async def cmd_restart_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             "control-plane works (/login /rewards /logs /status).",
         )
         return
+    sync_all_credentials(cfg, force=False)
     sup.close_breaker()
     pid = await sup.restart()
     await _reply(
@@ -546,7 +561,6 @@ async def _execute_email_password_login(
     await _reply(update, "⏳ Attempting direct email & password authentication...")
     ok, msg = await login.login_legacy(email, password)
     if ok:
-        sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
         auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
         if not os.path.isfile(auth_file):
             u_auth = os.path.expanduser("~/.config/optimai-cli/auth.json")
@@ -569,12 +583,12 @@ async def _execute_email_password_login(
                 )
             except Exception:
                 pass
-        for alt_home in (os.path.expanduser("~"), "/data/home", "./data/home"):
-            if os.path.isdir(alt_home) and alt_home != cfg.optimai_home:
-                sync_local_credentials(cfg.optimai_home, alt_home)
+        sync_all_credentials(cfg, force=True)
         docker_ok, _ = await cli.docker_server_version()
+        is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
+        docker_available = docker_ok or os.path.exists("/var/run/docker.sock") or cfg.is_local or is_termux
         auto_msg = ""
-        if cfg.node_auto_start and docker_ok and not sup.running:
+        if cfg.node_auto_start and docker_available and not sup.running:
             pid = await sup.request_start()
             auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
         await _reply(
@@ -744,6 +758,7 @@ async def cmd_auth(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Force bi-directional credential and database sync between bot and workspace terminal."""
     cfg, cli, _sup, _gate, _login = _wd(context)
+    sync_all_credentials(cfg, force=True)
     restore_credentials_from_database(cfg.credentials_path(), cfg.optimai_home)
     for h in (os.path.expanduser("~"), "/data/home", "./data/home"):
         if os.path.isdir(h):
@@ -1112,7 +1127,7 @@ async def cmd_version(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await _reply(
         update,
         "ℹ️ <b>Versions</b>\n"
-        f"Bot: OptimAI Telegram Node v{bot.__version__} (online: {_format_timestamp(_BOT_START_TIME)}) (rev {_get_git_rev()})\n"
+        f"Bot: OptimAI Telegram Bot v{bot.__version__} (online: {_format_timestamp(_BOT_START_TIME)}) (rev {_get_git_rev()})\n"
         f"CLI: {html.escape(cli_version)}",
     )
 
@@ -1241,7 +1256,6 @@ async def on_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         tail = summary[:1500]
         auto_msg = ""
         if ok:
-            sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
             auth_file = os.path.join(cfg.optimai_home, ".config", "optimai-cli", "auth.json")
             if not os.path.isfile(auth_file):
                 u_auth = os.path.expanduser("~/.config/optimai-cli/auth.json")
@@ -1264,11 +1278,11 @@ async def on_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     )
                 except Exception:
                     pass
-            for alt_home in (os.path.expanduser("~"), "/data/home", "./data/home"):
-                if os.path.isdir(alt_home) and alt_home != cfg.optimai_home:
-                    sync_local_credentials(cfg.optimai_home, alt_home)
+            sync_all_credentials(cfg, force=True)
             docker_ok, _ = await cli.docker_server_version()
-            if cfg.node_auto_start and docker_ok and not sup.running:
+            is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
+            docker_available = docker_ok or os.path.exists("/var/run/docker.sock") or cfg.is_local or is_termux
+            if cfg.node_auto_start and docker_available and not sup.running:
                 pid = await sup.request_start()
                 auto_msg = f"\n\n🚀 <b>Mining Started:</b> Node and Docker AI miner spawned automatically (PID {pid})!"
         await _reply(update, f"{header}\n\n<pre>{html.escape(tail)}</pre>\n<i>Credentials saved to database & synchronized with terminal.</i>{auto_msg}")
@@ -1345,6 +1359,7 @@ async def _post_init(app: Application) -> None:
         download_compatible_cli(target)
 
     # Restore credentials from persistent database file if available
+    sync_all_credentials(cfg, force=True)
     restore_credentials_from_database(cfg.credentials_path(), cfg.optimai_home)
     if cfg.is_local:
         sync_local_credentials(cfg.optimai_home, os.path.expanduser("~"))
@@ -1365,7 +1380,7 @@ async def _post_init(app: Application) -> None:
 
     docker_ok, docker_ver = await cli.docker_server_version()
     is_termux = bool(os.environ.get("TERMUX_VERSION")) or os.path.isdir("/data/data/com.termux")
-    effective_docker_ok = docker_ok or is_termux
+    effective_docker_ok = docker_ok or is_termux or os.path.exists("/var/run/docker.sock") or cfg.is_local
     sup.update_health(authenticated, effective_docker_ok)
 
     has_explicit_state = os.path.exists(sup._state_path)
@@ -1516,6 +1531,7 @@ def build_app(cfg: Config) -> Application:
         data_dir=cfg.data_dir,
         state_path=cfg.state_path(),
         log_path=cfg.node_log_path(),
+        cfg=cfg,
     )
     gate = UnauthorizedGate(cfg.unauth_counts_path(), max_messages=cfg.unauth_max_messages)
     login = LoginManager(cli, ttl_minutes=cfg.login_ttl_minutes)
@@ -1569,7 +1585,7 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    log.info("Starting OptimAI Telegram Node v%s", bot.__version__)
+    log.info("Starting OptimAI Telegram Bot v%s", bot.__version__)
 
     try:
         cfg = Config.load()

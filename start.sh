@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # start.sh — Universal Launcher for OptimAI Telegram Bot & Miner
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Starts both the 24/7 Telegram supervisor bot AND the OptimAI
 # mining node in the background across VPS, local machine & Termux.
@@ -67,6 +67,49 @@ if [ "$DOCKER_AVAILABLE" = true ]; then
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   REUSE_EXISTING=false
 
+  HAS_TELEGRAM_TOKEN=false
+  if [ -f .env ] && grep -q '^TELEGRAM_BOT_TOKEN=[0-9]' .env 2>/dev/null; then
+    HAS_TELEGRAM_TOKEN=true
+  fi
+
+  if [ "$HAS_TELEGRAM_TOKEN" = false ]; then
+    printf "\n${C_BOLD}======================================================================${C_OFF}\n"
+    printf "${C_CYAN}  ⛏️  Starting Official OptimAI Node (optimai-cli node start)...${C_OFF}\n"
+    printf "${C_BOLD}======================================================================${C_OFF}\n"
+    printf "  Notice: Telegram Bot credentials not configured in .env.\n"
+    printf "  Starting the official OptimAI mining node directly in background...\n\n"
+
+    CLI_BIN="optimai-cli"
+    if ! command -v "$CLI_BIN" >/dev/null 2>&1; then
+      if [ -x "/usr/local/bin/optimai-cli" ]; then
+        CLI_BIN="/usr/local/bin/optimai-cli"
+      elif [ -x "$HOME/.local/bin/optimai-cli" ]; then
+        CLI_BIN="$HOME/.local/bin/optimai-cli"
+      fi
+    fi
+
+    if command -v screen >/dev/null 2>&1; then
+      screen -dmS optimai "$CLI_BIN" node start
+      printf "  ${C_GREEN}[🚀] OptimAI Node running in screen session!${C_OFF}\n"
+      printf "  • Command:        ${C_CYAN}%s node start${C_OFF}\n" "$CLI_BIN"
+      printf "  • View Terminal:  ${C_CYAN}screen -r optimai${C_OFF} (Detach: Ctrl+A then D)\n"
+      printf "  • Check Status:   ${C_CYAN}%s node status${C_OFF}\n" "$CLI_BIN"
+      printf "  • View Rewards:   ${C_CYAN}%s rewards balance${C_OFF}\n" "$CLI_BIN"
+      printf "  • Stop Node:      Press ${C_CYAN}Ctrl+C${C_OFF} in screen session\n\n"
+    else
+      mkdir -p ./data 2>/dev/null || true
+      nohup "$CLI_BIN" node start > ./data/node.log 2>&1 </dev/null &
+      printf "  ${C_GREEN}[🚀] OptimAI Node started in background (PID %s)!${C_OFF}\n" "$!"
+      printf "  • Command:      ${C_CYAN}%s node start${C_OFF}\n" "$CLI_BIN"
+      printf "  • Check Status: ${C_CYAN}%s node status${C_OFF}\n" "$CLI_BIN"
+      printf "  • View Rewards: ${C_CYAN}%s rewards balance${C_OFF}\n\n" "$CLI_BIN"
+    fi
+    printf "  💡 Tip: To enable 24/7 Telegram Remote Bot control, add your token to .env:\n"
+    printf "     ${C_YELLOW}nano .env${C_OFF} -> set TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS\n"
+    printf "     Then run: ${C_GREEN}bash start.sh${C_OFF}\n\n"
+    exit 0
+  fi
+
   # Pre-flight container conflict check & interactive resolution
   for conflict_resolver in "$SCRIPT_DIR/scripts/handle-docker-container.sh" "scripts/handle-docker-container.sh"; do
     if [ -f "$conflict_resolver" ]; then
@@ -95,8 +138,8 @@ if [ "$DOCKER_AVAILABLE" = true ]; then
         docker-compose up -d --build
       fi
     else
-      docker rm -f optimai-telegram-node optimai-node >/dev/null 2>&1 || true
-      docker run -d --name optimai-telegram-node --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -v ./data:/data optimai-telegram-node
+      docker rm -f optimai-telegram-bot optimai-telegram-node optimai-node >/dev/null 2>&1 || true
+      docker run -d --name optimai-telegram-bot --restart unless-stopped -v /var/run/docker.sock:/var/run/docker.sock -v ./data:/data optimai-telegram-bot
     fi
   fi
 

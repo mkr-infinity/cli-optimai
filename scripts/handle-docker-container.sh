@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # scripts/handle-docker-container.sh — Docker Container Lifecycle & Conflict Resolver
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Robustly handles all Docker conflict states:
 #   - Container running vs stopped vs paused vs dead vs restarting
@@ -15,7 +15,7 @@
 
 set -u
 
-TARGET_CONTAINER_NAMES=("optimai-telegram-node" "optimai-node")
+TARGET_CONTAINER_NAMES=("optimai-telegram-bot" "optimai-telegram-node" "optimai-node")
 PROMPT_TIMEOUT="${CONTAINER_PROMPT_TIMEOUT:-60}"
 
 # Color codes

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # scripts/prompt-env.sh — Interactive Telegram Credentials Intake
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Prompts the user interactively with a 60-second timeout for
 # TELEGRAM_BOT_TOKEN and TELEGRAM_ALLOWED_IDS.

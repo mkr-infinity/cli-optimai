@@ -36,6 +36,7 @@ import urllib.error
 import urllib.request
 from typing import Awaitable, Callable
 
+from .config import Config, sync_all_credentials
 from .optimai import OptimaiCLI, contains_update_warning, tail_file
 
 log = logging.getLogger(__name__)
@@ -85,12 +86,15 @@ class Supervisor:
         state_path: str,
         log_path: str,
         alert_fn: AlertFn | None = None,
+        cfg: Config | None = None,
     ) -> None:
         self.cli = cli
+        self.cfg = cfg
         self.data_dir = data_dir
         self._state_path = state_path
         self._log_path = log_path
         self._alert_fn = alert_fn
+        self._last_cred_sync = 0.0
 
         self.desired: str = self._load_desired()
         self._proc: asyncio.subprocess.Process | None = None
@@ -416,6 +420,13 @@ class Supervisor:
         proc = self._proc
 
         now = time.monotonic()
+        if self.cfg is not None and now - self._last_cred_sync >= 10.0:
+            self._last_cred_sync = now
+            try:
+                sync_all_credentials(self.cfg)
+            except Exception:
+                pass
+
         if now - self._last_net_check >= 45.0:
             self._last_net_check = now
             online = await self.check_network_connectivity()

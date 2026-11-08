@@ -1,4 +1,4 @@
-# Deploying OptimAI Telegram Node on Google Cloud (GCP)
+# Deploying OptimAI Telegram Bot on Google Cloud (GCP)
 
 This guide walks you through deploying your 24/7 OptimAI mining node on **Google Cloud Platform (GCP)** using Compute Engine.
 

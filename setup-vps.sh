@@ -136,7 +136,7 @@ if [ ! -x "$REAL_TARGET" ]; then
   REAL_TARGET="$SCRIPT_DIR/optimai-bin"
 fi
 
-for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/cli-optimai/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/cli-optimai/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
   if [ -f "$sync_cand" ]; then
     bash "$sync_cand" >/dev/null 2>&1 || true
     break
@@ -155,7 +155,7 @@ done
 "$REAL_TARGET" "${args[@]}"
 RC=$?
 
-for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/cli-optimai/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/cli-optimai/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
   if [ -f "$sync_cand" ]; then
     bash "$sync_cand" >/dev/null 2>&1 || true
     break

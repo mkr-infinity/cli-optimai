@@ -1,4 +1,4 @@
-# ⛏️ OptimAI Telegram Node (v1.9.0)
+# ⛏️ OptimAI Telegram Bot (v1.9.0)
 
 Autonomous 24/7 supervisor and Telegram management bot for the official OptimAI CLI Node.
 
@@ -194,5 +194,5 @@ Every deployment target, triage runbook, and project governance policy has a ded
 ---
 
 ### Attribution & Author
-**OptimAI Telegram Node v1.9.0** — Created by **Mohammad Kaif Raja (mkr-infinity)**  
+**OptimAI Telegram Bot v1.9.0** — Created by **Mohammad Kaif Raja (mkr-infinity)**  
 [Telegram @mkr_infinity](https://t.me/mkr_infinity) · [Support](https://buymeacoffee.com/mkr_infinity) · UPI: `mkr-infinity@ybl`

@@ -1,4 +1,4 @@
-# 🗺️ Product Roadmap — OptimAI Telegram Node
+# 🗺️ Product Roadmap — OptimAI Telegram Bot
 
 > **Document Scope & Purpose:**
 > * **[README.md](README.md)** is the **user guide & quickstart**: architecture diagrams, 5-step deployment, full Telegram bot command list, and troubleshooting.

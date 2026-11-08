@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # scripts/check-readiness.sh — Pre-Flight Miner Readiness Checker
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Validates every required component for the OptimAI miner:
 # binary, daemon, multiplexer, networking, python, storage & env.
@@ -152,7 +152,10 @@ fi
 # 4b. Docker Container Conflict / State
 TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  EXISTING_CID="$(docker ps -a --filter "name=^/optimai-telegram-node$" --format "{{.ID}}" 2>/dev/null | head -n1)"
+  EXISTING_CID="$(docker ps -a --filter "name=^/optimai-telegram-bot$" --format "{{.ID}}" 2>/dev/null | head -n1)"
+  if [ -z "$EXISTING_CID" ]; then
+    EXISTING_CID="$(docker ps -a --filter "name=^/optimai-telegram-node$" --format "{{.ID}}" 2>/dev/null | head -n1)"
+  fi
   if [ -n "$EXISTING_CID" ]; then
     C_STATUS="$(docker inspect --format '{{.State.Status}}' "$EXISTING_CID" 2>/dev/null || echo 'unknown')"
     pass "4b. OptimAI Docker Container" "Found container ${EXISTING_CID:0:12} ($C_STATUS)"

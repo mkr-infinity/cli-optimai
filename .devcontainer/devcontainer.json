@@ -1,5 +1,5 @@
 {
-  "name": "OptimAI Telegram Node",
+  "name": "OptimAI Telegram Bot",
   "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {

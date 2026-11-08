@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # setup-codespaces.sh — Automated Setup for GitHub Codespaces
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Configures the complete 24/7 supervisor bot, official mining CLI,
 # Python virtual environment and dependencies inside GitHub Codespaces.
@@ -91,7 +91,7 @@ if [ ! -x "$REAL_TARGET" ]; then
 fi
 
 # Pre-execution: synchronize credentials from ./data or credentials.json if available
-for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/cli-optimai/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/cli-optimai/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
   if [ -f "$sync_cand" ]; then
     bash "$sync_cand" >/dev/null 2>&1 || true
     break
@@ -111,7 +111,7 @@ done
 RC=$?
 
 # Post-execution: sync updated credentials back to ./data and credentials.json database
-for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
+for sync_cand in "$(pwd)/scripts/sync-credentials.sh" "$HOME/cli-optimai/scripts/sync-credentials.sh" "$HOME/optimai-cli/scripts/sync-credentials.sh" "/workspaces/cli-optimai/scripts/sync-credentials.sh" "/workspaces/optimai-cli/scripts/sync-credentials.sh"; do
   if [ -f "$sync_cand" ]; then
     bash "$sync_cand" >/dev/null 2>&1 || true
     break
