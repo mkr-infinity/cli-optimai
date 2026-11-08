@@ -57,3 +57,23 @@ Rapid troubleshooting guides for common VPS and node operation incidents.
      curl -I https://api.telegram.org
      ```
   3. If token leaked or conflict persists, revoke and generate a new token via @BotFather.
+
+## 4. Docker Container Name Conflict (`/optimai-telegram-node already in use`)
+
+- **Symptom**: `Error response from daemon: Conflict. The container name "/optimai-telegram-node" is already in use by container "..."`.
+- **Root Causes**:
+  - A previous container was created under an older compose project name (e.g. before repository directory renaming).
+  - A stopped or orphaned container from a previous run occupies the container name.
+- **Triage Steps**:
+  1. Automated resolution:
+     Run `bash start.sh` — it detects conflicting containers and provides interactive choices: `1) Clean Install` (stop & remove) or `2) Use Existing Container` (start & attach).
+  2. One-liner cleanup:
+     ```bash
+     make clean-containers
+     # or directly:
+     docker rm -f optimai-telegram-node optimai-node
+     ```
+  3. Rebuild and start fresh:
+     ```bash
+     docker compose up -d --build
+     ```

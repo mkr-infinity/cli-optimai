@@ -4,12 +4,13 @@
 SHELL := /bin/bash
 PY := .venv/bin/python
 
-.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs log compat readiness check-readiness start run setup
+.PHONY: help venv install test pytest compile check status clean compose-config diag validate git-status help-all check-all env-check logs log compat readiness check-readiness start run setup clean-containers
 
 help:
 	@echo "OptimAI CLI Developer Commands:"
 	@echo "  make setup           run universal automated environment setup"
 	@echo "  make start           launch bot and AI mining node"
+	@echo "  make clean-containers purge conflicting OptimAI Docker containers"
 	@echo "  make venv            create Python 3.12 venv"
 	@echo "  make install         install runtime + dev deps into .venv"
 	@echo "  make test            run standalone smoke suite (no network)"
@@ -88,3 +89,7 @@ logs:
 	@if [ -f data/node.log ]; then $(PY) -m bot.main logs; else docker compose logs --tail=100 -f; fi
 
 log: logs
+
+clean-containers:
+	@docker rm -f optimai-telegram-node optimai-node 2>/dev/null || true
+	@echo "[OK] Purged conflicting OptimAI Docker containers"

@@ -159,6 +159,8 @@ class OptimaiCLI:
                 if len(parts) >= 2:
                     cid, img = parts[0], parts[1].lower()
                     name = parts[2].lower() if len(parts) > 2 else ""
+                    if name in ("optimai-telegram-node", "optimai-node") or "telegram" in name:
+                        continue
                     if any(k in img or k in name for k in ("optimai", "crawl4ai", "crawler")):
                         stop_rc, _, _ = await self.run_bin("docker", "stop", "-t", "5", cid, timeout=15)
                         if stop_rc == 0:

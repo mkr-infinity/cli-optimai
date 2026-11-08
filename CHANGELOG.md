@@ -3,6 +3,12 @@
 ## v1.9.0 — 2026-11-08
 
 ### Added
+- Automated Docker container conflict detection and interactive lifecycle manager (`scripts/handle-docker-container.sh`).
+- Interactive prompt for existing container conflicts: choose between Clean Install (remove conflicting container) and Use Existing Container (reuse & resume) with 60s auto-timeout.
+- Safe Docker Compose startup wrapper with automated conflict detection, container removal, and retry.
+- Added `make clean-containers` developer command to purge orphaned or conflicting node containers in one step.
+- Safeguarded `stop_mining_containers` in `bot/optimai.py` so the supervisor bot container is never stopped during mining node shutdowns.
+- Explicitly pinned `name: cli-optimai` in `docker-compose.yml` to prevent project-name divergence conflicts across repository renames.
 - Bi-directional credential synchronization between container / database / host terminal (`scripts/sync-credentials.sh`, `bot/config.py`).
 - Official OptimAI CLI installation syntax: `chmod +x optimai-cli` and `sudo mv optimai-cli /usr/local/bin/optimai-cli` across all setup scripts.
 - Pre/post execution sync wrapper in `/usr/local/bin/optimai-cli` to keep Codespaces and VPS terminals authenticated in real time.

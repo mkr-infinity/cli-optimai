@@ -301,6 +301,37 @@ check("windows: setup-windows.ps1 and start.bat exist", os.path.isfile(os.path.j
 check("prompt: scripts/prompt-env.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-env.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-env.sh"), os.X_OK))
 check("prompt: scripts/prompt-login.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "prompt-login.sh")) and os.access(os.path.join(ROOT, "scripts", "prompt-login.sh"), os.X_OK))
 check("sync: scripts/sync-credentials.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "sync-credentials.sh")) and os.access(os.path.join(ROOT, "scripts", "sync-credentials.sh"), os.X_OK))
+check("docker: scripts/handle-docker-container.sh exists and is executable", os.path.isfile(os.path.join(ROOT, "scripts", "handle-docker-container.sh")) and os.access(os.path.join(ROOT, "scripts", "handle-docker-container.sh"), os.X_OK))
+
+# Test handle-docker-container.sh resolution function
+p_docker_noconflict = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "handle-docker-container.sh")} && resolve_container_conflict "" 1'],
+    cwd=ROOT,
+    env=dict(os.environ),
+    capture_output=True,
+    text=True,
+)
+check("docker: resolve_container_conflict returns 0 when no conflicting container", p_docker_noconflict.returncode == 0)
+
+# Test handle-docker-container.sh option 1 (clean install) simulation
+p_docker_opt1 = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "handle-docker-container.sh")} && printf "1\\n" | resolve_container_conflict "mock-cid" 5'],
+    cwd=ROOT,
+    env=dict(os.environ),
+    capture_output=True,
+    text=True,
+)
+check("docker: resolve_container_conflict option 1 selects clean install", p_docker_opt1.returncode == 0 and "Clean Install" in p_docker_opt1.stdout)
+
+# Test handle-docker-container.sh option 2 (use existing container) simulation
+p_docker_opt2 = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "handle-docker-container.sh")} && printf "2\\n" | resolve_container_conflict "mock-cid" 5'],
+    cwd=ROOT,
+    env=dict(os.environ),
+    capture_output=True,
+    text=True,
+)
+check("docker: resolve_container_conflict option 2 selects reuse existing", p_docker_opt2.returncode == 2 and "Use Existing Container" in p_docker_opt2.stdout)
 
 # Test login prompt skip behavior on empty input (isolated stub auth flag)
 prompt_auth_file = os.path.join(TMP, "prompt_stub_auth")
@@ -758,6 +789,10 @@ check(
 check(
     "optimai: node_stop and stop_mining_containers helpers exist",
     "def node_stop" in opt_src and "def stop_mining_containers" in opt_src,
+)
+check(
+    "optimai: stop_mining_containers protects optimai-telegram-node",
+    'name in ("optimai-telegram-node", "optimai-node")' in opt_src,
 )
 sup_src = open(os.path.join(ROOT, "bot", "supervisor.py"), encoding="utf-8").read()
 check(
