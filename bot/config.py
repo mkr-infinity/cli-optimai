@@ -14,6 +14,7 @@ import os
 import platform
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 
 _TRUE = {"true", "1", "yes", "on"}
@@ -384,6 +385,176 @@ def restore_credentials_from_database(credentials_path: str, optimai_home: str) 
     except OSError:
         pass
     return False
+
+
+_last_cred_sync_time: float = 0.0
+
+
+def sync_all_credentials(cfg: Config, force: bool = False) -> bool:
+    """Bi-directionally synchronize credentials between all candidate home directories
+    (e.g. cfg.optimai_home, user ~, ./data/home, /data/home, workspace) and
+    persistent database files (credentials.json).
+    Throttled to run at most once every 5 seconds unless force=True."""
+    global _last_cred_sync_time
+    now = time.monotonic()
+    if not force and (now - _last_cred_sync_time) < 5.0:
+        return False
+    _last_cred_sync_time = now
+
+    candidate_homes: list[str] = []
+    for h in (
+        getattr(cfg, "optimai_home", None),
+        os.path.expanduser("~"),
+        os.path.abspath("./data/home"),
+        "/data/home",
+        "/workspaces/cli-optimai/data/home",
+        "/workspaces/optimai-cli/data/home",
+        "/home/vscode",
+    ):
+        if h and os.path.isdir(h) and h not in candidate_homes:
+            candidate_homes.append(h)
+
+    candidate_dbs: list[str] = []
+    if hasattr(cfg, "credentials_path"):
+        try:
+            raw_db = cfg.credentials_path()
+            if raw_db:
+                candidate_dbs.append(raw_db)
+        except Exception:
+            pass
+
+    for db_cand in (
+        os.path.abspath("./data/credentials.json"),
+        os.path.abspath("./data/data/credentials.json"),
+        "/data/credentials.json",
+        "/data/data/credentials.json",
+        "/workspaces/cli-optimai/data/credentials.json",
+        "/workspaces/optimai-cli/data/credentials.json",
+        os.path.expanduser("~/.config/optimai-cli/credentials.json"),
+        "/home/vscode/.config/optimai-cli/credentials.json",
+    ):
+        if db_cand not in candidate_dbs:
+            candidate_dbs.append(db_cand)
+
+    newest_dir_mtime = 0.0
+    newest_dir_source = None
+    for home in candidate_homes:
+        auth_p = os.path.join(home, ".config", "optimai-cli", "auth.json")
+        if os.path.isfile(auth_p) and os.path.getsize(auth_p) > 0:
+            try:
+                mtime = os.path.getmtime(auth_p)
+                if mtime > newest_dir_mtime:
+                    with open(auth_p, "r", encoding="utf-8") as fh:
+                        content = json.load(fh)
+                        if isinstance(content, dict) and bool(content):
+                            newest_dir_mtime = mtime
+                            newest_dir_source = os.path.join(home, ".config", "optimai-cli")
+            except Exception:
+                pass
+
+    newest_db_mtime = 0.0
+    newest_db_data = None
+    for db_p in candidate_dbs:
+        if os.path.isfile(db_p) and os.path.getsize(db_p) > 0:
+            try:
+                with open(db_p, "r", encoding="utf-8") as fh:
+                    db_data = json.load(fh)
+                    if isinstance(db_data, dict) and (db_data.get("auth_snapshot") or db_data.get("email")):
+                        mtime = db_data.get("updated_at") or os.path.getmtime(db_p)
+                        if mtime > newest_db_mtime:
+                            newest_db_mtime = mtime
+                            newest_db_data = db_data
+            except Exception:
+                pass
+
+    master_auth = None
+    master_user = None
+    master_mtime = 0.0
+
+    if newest_dir_source and (newest_dir_mtime >= newest_db_mtime or not newest_db_data):
+        master_mtime = newest_dir_mtime
+        try:
+            with open(os.path.join(newest_dir_source, "auth.json"), "r", encoding="utf-8") as fh:
+                master_auth = json.load(fh)
+            user_f = os.path.join(newest_dir_source, "user.json")
+            if os.path.isfile(user_f) and os.path.getsize(user_f) > 0:
+                with open(user_f, "r", encoding="utf-8") as fh:
+                    master_user = json.load(fh)
+        except Exception:
+            master_auth = None
+    elif newest_db_data and newest_db_data.get("auth_snapshot"):
+        master_mtime = newest_db_mtime
+        master_auth = newest_db_data.get("auth_snapshot")
+        master_user = newest_db_data.get("user_snapshot")
+
+    if not master_auth:
+        return False
+
+    synced_any = False
+    for home in candidate_homes:
+        target_dir = os.path.join(home, ".config", "optimai-cli")
+        target_auth = os.path.join(target_dir, "auth.json")
+        target_mtime = os.path.getmtime(target_auth) if os.path.isfile(target_auth) else 0.0
+        if target_mtime < master_mtime or not os.path.isfile(target_auth):
+            try:
+                os.makedirs(target_dir, exist_ok=True)
+                tmp_auth = target_auth + ".tmp"
+                with open(tmp_auth, "w", encoding="utf-8") as fh:
+                    json.dump(master_auth, fh, indent=2)
+                if hasattr(os, "chmod"):
+                    try:
+                        os.chmod(tmp_auth, 0o600)
+                    except OSError:
+                        pass
+                os.replace(tmp_auth, target_auth)
+                if master_user:
+                    target_user = os.path.join(target_dir, "user.json")
+                    with open(target_user, "w", encoding="utf-8") as fh:
+                        json.dump(master_user, fh, indent=2)
+                synced_any = True
+            except OSError:
+                pass
+
+        if newest_dir_source and target_dir != newest_dir_source:
+            for fname in ("device.json", "node_identity.json", "uptime.json"):
+                sfile = os.path.join(newest_dir_source, fname)
+                dfile = os.path.join(target_dir, fname)
+                if os.path.isfile(sfile) and not os.path.isfile(dfile):
+                    try:
+                        shutil.copy2(sfile, dfile)
+                    except OSError:
+                        pass
+
+    db_payload = {
+        "auth_type": "synced",
+        "auth_snapshot": master_auth,
+        "user_snapshot": master_user or {},
+        "updated_at": master_mtime if master_mtime > 0 else time.time(),
+    }
+    if master_user and isinstance(master_user, dict) and master_user.get("email"):
+        db_payload["email"] = master_user["email"]
+
+    for db_p in candidate_dbs:
+        try:
+            p_dir = os.path.dirname(db_p)
+            if not os.path.isdir(p_dir):
+                continue
+            curr_mtime = os.path.getmtime(db_p) if os.path.isfile(db_p) else 0.0
+            if curr_mtime < master_mtime or not os.path.isfile(db_p):
+                tmp_db = db_p + ".tmp"
+                with open(tmp_db, "w", encoding="utf-8") as fh:
+                    json.dump(db_payload, fh, indent=2)
+                if hasattr(os, "chmod"):
+                    try:
+                        os.chmod(tmp_db, 0o666)
+                    except OSError:
+                        pass
+                os.replace(tmp_db, db_p)
+                synced_any = True
+        except OSError:
+            pass
+
+    return synced_any
 
 
 def _parse_bool(raw: str | None, default: bool = False) -> bool:

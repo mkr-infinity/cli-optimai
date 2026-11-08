@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""OptimAI Telegram Node — a Telegram-controlled OptimAI CLI node supervisor.
+"""OptimAI Telegram Bot — a Telegram-controlled OptimAI CLI node supervisor.
 
 Package marker, version metadata, and the application startup banner.
 """
@@ -13,7 +13,7 @@ __version__ = "1.9.0"
 
 BANNER_TEXT = """
 \033[1;36m========================================================================================\033[0m
-\033[1;32m  OptimAI Telegram Node - Node Controller Bot v1.9.0\033[0m
+\033[1;32m  OptimAI Telegram Bot - Node Controller Bot v1.9.0\033[0m
 \033[1;30m  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\033[0m
   \033[1;35m"Your OptimAI node, 24/7, controlled from Telegram. ⛏️"\033[0m
 
@@ -49,4 +49,4 @@ def print_banner() -> None:
 
 def get_full_version_string() -> str:
     """Return full product name and version string."""
-    return f"OptimAI Telegram Node v{__version__}"
+    return f"OptimAI Telegram Bot v{__version__}"

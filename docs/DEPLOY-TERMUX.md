@@ -1,6 +1,6 @@
 # 📱 Android Termux Deployment & Mining Guide
 
-Run your **OptimAI Telegram Node 24/7 directly on your Android phone or tablet** using Termux! Control your node, monitor mining rewards, and manage everything from Telegram without needing an expensive cloud VPS.
+Run your **OptimAI Telegram Bot 24/7 directly on your Android phone or tablet** using Termux! Control your node, monitor mining rewards, and manage everything from Telegram without needing an expensive cloud VPS.
 
 ---
 

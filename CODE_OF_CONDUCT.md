@@ -23,7 +23,7 @@ participants.
 
 ## Attribution
 
-Adapted for the OptimAI Telegram Node project
+Adapted for the OptimAI Telegram Bot project
 (Copyright (c) Mohammad Kaif Raja). Unauthorized modification,
 redistribution, or commercial sale of this software is prohibited without
 prior written permission. Personal use permitted.

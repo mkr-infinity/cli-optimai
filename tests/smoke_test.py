@@ -819,7 +819,7 @@ check(
 )
 check(
     "main: build_welcome_card helper exists",
-    "build_welcome_card" in src and "Welcome to OptimAI Telegram Node" in src,
+    "build_welcome_card" in src and "Welcome to OptimAI Telegram Bot" in src,
 )
 check(
     "main: cmd_env and cmd_setenv helpers exist",
@@ -836,7 +836,7 @@ test_sup = Supervisor(test_cli, test_cfg.data_dir, os.path.join(test_cfg.data_di
 test_card_text, test_card_markup = asyncio.run(build_welcome_card(test_cfg, test_cli, test_sup))
 check(
     "main: build_welcome_card executes cleanly and returns overview card",
-    "Welcome to OptimAI Telegram Node" in test_card_text and bool(test_card_markup),
+    "Welcome to OptimAI Telegram Bot" in test_card_text and bool(test_card_markup),
 )
 check(
     "main: build_welcome_card includes screen session and reward alerts",
@@ -845,6 +845,22 @@ check(
 check(
     "main: /start handler mapped to cmd_start",
     'CommandHandler("start", cmd_start' in src,
+)
+check(
+    "main: _BOT_START_MONOTONIC defined at module level",
+    "_BOT_START_MONOTONIC" in src and "_BOT_START_MONOTONIC = time.monotonic()" in src,
+)
+check(
+    "optimai: probe_docker_socket helper exists",
+    "def probe_docker_socket" in opt_src,
+)
+check(
+    "config: sync_all_credentials helper exists",
+    "def sync_all_credentials" in open(os.path.join(ROOT, "bot", "config.py"), encoding="utf-8").read(),
+)
+check(
+    "bot: Telegram Bot naming verified across package",
+    "OptimAI Telegram Bot" in bot.get_full_version_string(),
 )
 stub_src = open(os.path.join(ROOT, "scripts", "stub-optimai-cli.sh"), encoding="utf-8").read()
 check(

@@ -61,7 +61,7 @@
 
 ## v1.0.0 — 2026-11-07
 
-First stable release of **OptimAI Telegram Node**: a Dockerized Python Telegram
+First stable release of **OptimAI Telegram Bot**: a Dockerized Python Telegram
 bot that runs an OptimAI Network CLI node 24/7 on a VPS, controlled entirely
 from Telegram, with an honest Railway control-plane mode.
 

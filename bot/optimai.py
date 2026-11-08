@@ -20,8 +20,13 @@ Verified CLI surface (optimai-cli v0.1.63, core CLI 0.1.63):
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import os
+import socket
 import time
+
+log = logging.getLogger(__name__)
 
 NOT_AUTHENTICATED_MARK = "Not authenticated"
 UPDATE_WARNING_MARK = "Important OptimAI CLI update available"
@@ -187,9 +192,53 @@ class OptimaiCLI:
         )
         version = (out or "").strip()
         ok = rc == 0 and bool(version)
+        if not ok:
+            sock_ok, sock_ver = probe_docker_socket()
+            if sock_ok:
+                ok = True
+                version = sock_ver
         res_ver = version if ok else ""
         self._cached_docker = (now, ok, res_ver)
         return ok, res_ver
+
+
+def probe_docker_socket(sock_path: str = "/var/run/docker.sock", timeout: float = 2.0) -> tuple[bool, str]:
+    """Directly probe the Docker Engine Unix domain socket at sock_path via HTTP.
+    Returns (True, version) if reachable, or (False, "") if absent/failing."""
+    if not os.path.exists(sock_path):
+        return False, ""
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect(sock_path)
+        s.sendall(b"GET /version HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        res = b""
+        while True:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            res += chunk
+        s.close()
+        _, _, body = res.partition(b"\r\n\r\n")
+        if body:
+            try:
+                data = json.loads(body.decode("utf-8", errors="replace"))
+                ver = data.get("Version") or data.get("ApiVersion")
+                if ver:
+                    return True, str(ver)
+            except Exception:
+                text = body.decode("utf-8", errors="replace")
+                s_idx = text.find("{")
+                e_idx = text.rfind("}")
+                if s_idx != -1 and e_idx != -1:
+                    data = json.loads(text[s_idx : e_idx + 1])
+                    ver = data.get("Version") or data.get("ApiVersion")
+                    if ver:
+                        return True, str(ver)
+        return True, "docker-daemon"
+    except Exception as exc:
+        log.debug("probe_docker_socket failed: %s", exc)
+        return False, ""
 
 
 # ----------------------------------------------------------------------

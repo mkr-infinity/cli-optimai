@@ -1,4 +1,4 @@
-# Security Policy — OptimAI Telegram Node
+# Security Policy — OptimAI Telegram Bot
 
 ## Supported versions
 

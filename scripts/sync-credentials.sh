@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # scripts/sync-credentials.sh — Bi-directional Credential Synchronizer
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Synchronizes official OptimAI CLI authentication credentials and
 # identity between host user home ($HOME/.config/optimai-cli),
@@ -32,10 +32,20 @@ candidate_data_dirs = [
     os.path.join(cwd, "data"),
     os.path.join(cwd, "..", "data"),
     os.path.join(root, "data"),
+    os.path.expanduser("~/cli-optimai/data"),
     os.path.expanduser("~/optimai-cli/data"),
+    "/workspaces/cli-optimai/data",
     "/workspaces/optimai-cli/data",
     "/data",
 ]
+if os.path.isdir("/workspaces"):
+    try:
+        for entry in os.listdir("/workspaces"):
+            d_cand = os.path.join("/workspaces", entry, "data")
+            if os.path.isdir(d_cand) and d_cand not in candidate_data_dirs:
+                candidate_data_dirs.append(d_cand)
+    except Exception:
+        pass
 
 # Find valid data directory
 data_dir = None
@@ -45,6 +55,11 @@ for d in candidate_data_dirs:
         break
 
 user_home = os.path.expanduser("~")
+candidate_user_homes = [user_home]
+for uh in ("/home/vscode", "/root", os.environ.get("SUDO_USER") and f"/home/{os.environ.get('SUDO_USER')}"):
+    if uh and os.path.isdir(uh) and uh not in candidate_user_homes:
+        candidate_user_homes.append(uh)
+
 user_cfg = os.path.join(user_home, ".config", "optimai-cli")
 user_auth = os.path.join(user_cfg, "auth.json")
 
@@ -57,7 +72,8 @@ if data_dir:
         os.path.join(data_dir, "credentials.json"),
         os.path.join(data_dir, "data", "credentials.json"),
     ])
-db_files.append(os.path.join(user_cfg, "credentials.json"))
+for uh in candidate_user_homes:
+    db_files.append(os.path.join(uh, ".config", "optimai-cli", "credentials.json"))
 
 # 1. Determine which auth source is newest and valid
 has_user_auth = os.path.isfile(user_auth) and os.path.getsize(user_auth) > 0
@@ -90,9 +106,13 @@ elif has_user_auth:
 elif has_data_auth:
     active_source = data_home_cfg
 
-# If neither directory has auth, but database has snapshot: restore to both
+# If neither directory has auth, but database has snapshot: restore to all targets
+targets = [data_home_cfg] if data_home_cfg else []
+for uh in candidate_user_homes:
+    targets.append(os.path.join(uh, ".config", "optimai-cli"))
+
 if not active_source and db_data and db_data.get("auth_snapshot"):
-    for target in (user_cfg, data_home_cfg):
+    for target in targets:
         if not target:
             continue
         try:
@@ -106,19 +126,19 @@ if not active_source and db_data and db_data.get("auth_snapshot"):
             pass
     active_source = user_cfg
 
-# If we have an active source, synchronize all configuration files to the other target
+# If we have an active source, synchronize all configuration files to all other targets
 if active_source:
-    target_cfg = data_home_cfg if active_source == user_cfg else user_cfg
-    if target_cfg and target_cfg != active_source:
-        try:
-            os.makedirs(target_cfg, exist_ok=True)
-            for fname in ("auth.json", "user.json", "device.json", "node_identity.json", "uptime.json"):
-                sfile = os.path.join(active_source, fname)
-                dfile = os.path.join(target_cfg, fname)
-                if os.path.isfile(sfile) and os.path.getsize(sfile) > 0:
-                    shutil.copy2(sfile, dfile)
-        except Exception:
-            pass
+    for target_cfg in targets:
+        if target_cfg and target_cfg != active_source:
+            try:
+                os.makedirs(target_cfg, exist_ok=True)
+                for fname in ("auth.json", "user.json", "device.json", "node_identity.json", "uptime.json"):
+                    sfile = os.path.join(active_source, fname)
+                    dfile = os.path.join(target_cfg, fname)
+                    if os.path.isfile(sfile) and os.path.getsize(sfile) > 0:
+                        shutil.copy2(sfile, dfile)
+            except Exception:
+                pass
 
     # Ensure credentials.json database is always updated with the latest snapshot
     try:

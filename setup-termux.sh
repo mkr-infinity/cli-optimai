@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # setup-termux.sh — Automated Setup for Android Termux
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Allows running the 24/7 supervisor bot and mining node directly
 # on an Android smartphone or tablet using Termux.
@@ -139,7 +139,7 @@ fi
 # Run in detached screen session with auto-start enabled
 screen -dmS optimai bash -c "cd $(pwd) && export NODE_AUTO_START=true && .venv/bin/python -m bot.main"
 
-echo "✅ OptimAI Telegram Node launched in background screen session!"
+echo "✅ OptimAI Telegram Bot launched in background screen session!"
 echo "• View terminal session:   screen -r optimai"
 echo "• Detach from session:     Press Ctrl+A then D"
 echo "• View live logs:          make logs"

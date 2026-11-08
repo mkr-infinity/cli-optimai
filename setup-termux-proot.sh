@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # setup-termux-proot.sh — Full On-Device ARM64 Mining via PRoot
-# OptimAI Telegram Node (v1.9.0)
+# OptimAI Telegram Bot (v1.9.0)
 #
 # Enables running the official x86_64 OptimAI CLI binary on
 # ARM64 Android phones using PRoot Ubuntu and QEMU x86_64 emulation.

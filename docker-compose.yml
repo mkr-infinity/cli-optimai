@@ -1,5 +1,5 @@
 # ============================================================
-# optimai-telegram-node — VPS runtime (Deployment A, primary)
+# optimai-telegram-bot — VPS runtime (Deployment A, primary)
 # Layer 1 of the 24/7 guarantee: restart: unless-stopped brings the
 # container back after crashes, reboots and docker daemon restarts.
 # ============================================================
@@ -9,7 +9,7 @@ name: cli-optimai
 services:
   optimai:
     build: .
-    container_name: optimai-telegram-node
+    container_name: optimai-telegram-bot
     restart: unless-stopped
     # PID 1 signal reaping so the CLI's graceful SIGINT handling works
     init: true

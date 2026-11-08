@@ -1,4 +1,4 @@
-# Contributing to OptimAI Telegram Node
+# Contributing to OptimAI Telegram Bot
 
 Thanks for your interest! This is a single-owner hosting project by
 **Mohammad Kaif Raja (mkr-infinity)**, but useful PRs are welcome.
