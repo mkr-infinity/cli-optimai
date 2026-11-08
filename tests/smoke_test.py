@@ -323,15 +323,25 @@ p_docker_opt1 = subprocess.run(
 )
 check("docker: resolve_container_conflict option 1 selects clean install", p_docker_opt1.returncode == 0 and "Clean Install" in p_docker_opt1.stdout)
 
-# Test handle-docker-container.sh option 2 (use existing container) simulation
+# Test handle-docker-container.sh option 2 (use existing container) simulation for active container
 p_docker_opt2 = subprocess.run(
-    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "handle-docker-container.sh")} && printf "2\\n" | resolve_container_conflict "mock-cid" 5'],
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "handle-docker-container.sh")} && docker() {{ case "${{3:-}}" in *State.Running*) echo "true" ;; *) echo "val" ;; esac; }} && printf "2\\n" | resolve_container_conflict "mock-cid" 5'],
     cwd=ROOT,
     env=dict(os.environ),
     capture_output=True,
     text=True,
 )
-check("docker: resolve_container_conflict option 2 selects reuse existing", p_docker_opt2.returncode == 2 and "Use Existing Container" in p_docker_opt2.stdout)
+check("docker: resolve_container_conflict option 2 selects reuse existing when running", p_docker_opt2.returncode == 2 and "already running and active" in p_docker_opt2.stdout)
+
+# Test handle-docker-container.sh option 2 fallback to clean install when container fails to start
+p_docker_opt2_fail = subprocess.run(
+    ["bash", "-c", f'. {os.path.join(ROOT, "scripts", "handle-docker-container.sh")} && docker() {{ if [ "${{1:-}}" = "inspect" ]; then echo "false"; elif [ "${{1:-}}" = "start" ]; then echo "error" >&2; return 1; else return 0; fi; }} && printf "2\\n" | resolve_container_conflict "mock-failing" 5'],
+    cwd=ROOT,
+    env=dict(os.environ),
+    capture_output=True,
+    text=True,
+)
+check("docker: resolve_container_conflict option 2 falls back to clean install if broken", p_docker_opt2_fail.returncode == 0 and "Falling back" in p_docker_opt2_fail.stdout and "Clean Install" in p_docker_opt2_fail.stdout)
 
 # Test login prompt skip behavior on empty input (isolated stub auth flag)
 prompt_auth_file = os.path.join(TMP, "prompt_stub_auth")

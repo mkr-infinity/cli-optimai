@@ -86,10 +86,11 @@ env-check:
 	@test -f .env && echo "[OK] .env exists" || echo "[WARN] .env missing"
 
 logs:
-	@if [ -f data/node.log ]; then $(PY) -m bot.main logs; else docker compose logs --tail=100 -f; fi
+	@if [ -f data/node.log ]; then $(PY) -m bot.main logs; elif docker inspect optimai-telegram-node >/dev/null 2>&1; then docker logs --tail=100 -f optimai-telegram-node; else docker compose logs --tail=100 -f; fi
 
 log: logs
 
 clean-containers:
 	@docker rm -f optimai-telegram-node optimai-node 2>/dev/null || true
-	@echo "[OK] Purged conflicting OptimAI Docker containers"
+	@docker network prune -f >/dev/null 2>&1 || true
+	@echo "[OK] Purged conflicting OptimAI Docker containers and stale networks"
