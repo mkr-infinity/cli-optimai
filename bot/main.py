@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import inspect
 import json
 import logging
 import os
@@ -111,16 +112,26 @@ async def _send_pre(message_target, text: str) -> None:
     if not text:
         return
     for part in _split_text(text):
-        await message_target(
-            f"<pre>{html.escape(part)}</pre>", parse_mode=ParseMode.HTML
-        )
+        escaped = f"<pre>{html.escape(part)}</pre>"
+        try:
+            res = message_target(escaped, parse_mode=ParseMode.HTML)
+        except TypeError:
+            res = message_target(escaped)
+        if inspect.isawaitable(res):
+            await res
 
 
-async def _reply(update: Update, text: str, keyboard: InlineKeyboardMarkup | None = None) -> None:
+async def _reply(
+    update: Update,
+    text: str,
+    keyboard: InlineKeyboardMarkup | None = None,
+    parse_mode: str | None = ParseMode.HTML,
+    **kwargs,
+) -> None:
     if not update.effective_message:
         return
     await update.effective_message.reply_text(
-        text, parse_mode=ParseMode.HTML, reply_markup=keyboard
+        text, parse_mode=parse_mode, reply_markup=keyboard, **kwargs
     )
 
 
@@ -396,11 +407,25 @@ async def cmd_start_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     sup.close_breaker()
     pid = await sup.request_start()
-    await _reply(
-        update,
-        f"🚀 Node starting (PID {pid}). Desired state: running. It will run 24/7 "
-        "and auto-restart on crashes. Docker AI miner containers are starting. Check /status.",
-    )
+    await asyncio.sleep(1.5)
+    recent = sup.get_recent_output(6)
+    out_snippet = "\n".join(recent).strip() if recent else ""
+    if sup.running:
+        msg = (
+            f"🚀 <b>Node started successfully (PID {sup._pid() or pid})!</b>\n"
+            f"Desired state: <b>running</b>. It will run 24/7 and auto-restart on crashes.\n"
+        )
+        if out_snippet:
+            msg += f"\n📋 <b>Initial Output:</b>\n<pre>{html.escape(out_snippet)}</pre>\n"
+        msg += "\n💡 Docker AI miner containers are starting. Check /status or /logs for live progress."
+        await _reply(update, msg)
+    else:
+        exit_code = sup._last_exit_code
+        msg = f"⚠️ <b>Node process exited during startup (exit code {exit_code}):</b>\n"
+        if out_snippet:
+            msg += f"<pre>{html.escape(out_snippet)}</pre>\n"
+        msg += "\nCheck /logs or run <code>optimai-cli node start</code> in terminal for diagnostic details."
+        await _reply(update, msg)
 
 
 async def cmd_stop_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -439,11 +464,25 @@ async def cmd_restart_node(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     sync_all_credentials(cfg, force=False)
     sup.close_breaker()
     pid = await sup.restart()
-    await _reply(
-        update,
-        f"🔄 Node restarted (PID {pid}). Desired state: running. Circuit breaker "
-        "closed.",
-    )
+    await asyncio.sleep(1.5)
+    recent = sup.get_recent_output(6)
+    out_snippet = "\n".join(recent).strip() if recent else ""
+    if sup.running:
+        msg = (
+            f"🔄 <b>Node restarted successfully (PID {sup._pid() or pid})!</b>\n"
+            f"Desired state: <b>running</b>. Circuit breaker closed.\n"
+        )
+        if out_snippet:
+            msg += f"\n📋 <b>Initial Output:</b>\n<pre>{html.escape(out_snippet)}</pre>\n"
+        msg += "\n💡 Check /status or /logs for live progress."
+        await _reply(update, msg)
+    else:
+        exit_code = sup._last_exit_code
+        msg = f"⚠️ <b>Node process exited after restart (exit code {exit_code}):</b>\n"
+        if out_snippet:
+            msg += f"<pre>{html.escape(out_snippet)}</pre>\n"
+        msg += "\nCheck /logs for diagnostic details."
+        await _reply(update, msg)
 
 
 async def cmd_rewards(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -456,7 +495,7 @@ async def cmd_rewards(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             f"<pre>{html.escape(body)}</pre>\n\n💡 Not authenticated — send /login first.",
         )
     else:
-        await _send_pre(lambda msg: _reply(update, msg), body)
+        await _send_pre(lambda msg, **kw: _reply(update, msg, **kw), body)
 
 
 async def cmd_rewardadded(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -504,7 +543,7 @@ async def cmd_logs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not lines:
         await _reply(update, "📝 node.log is empty.")
         return
-    await _send_pre(lambda msg: _reply(update, msg), "\n".join(lines))
+    await _send_pre(lambda msg, **kw: _reply(update, msg, **kw), "\n".join(lines))
 
 
 async def cmd_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -542,7 +581,7 @@ async def cmd_watch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if tail:
             sent_any = True
             for part in _split_text(tail):
-                await _send_pre(lambda msg: _reply(update, msg), part)
+                await _send_pre(lambda msg, **kw: _reply(update, msg, **kw), part)
         await asyncio.sleep(min(1.0, max(0.1, remaining)))
     if sent_any:
         await _reply(update, f"👁 Watch ended ({seconds}s). Freshest output delivered above.")
@@ -934,7 +973,7 @@ async def cmd_auth_status(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     cfg, cli, sup, _gate, _login = _wd(context)
     rc, out, err = await cli.auth_status()
     text = (out + err).strip() or f"(no output, exit code {rc})"
-    await _send_pre(lambda msg: _reply(update, msg), text)
+    await _send_pre(lambda msg, **kw: _reply(update, msg, **kw), text)
 
 
 async def cmd_me(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

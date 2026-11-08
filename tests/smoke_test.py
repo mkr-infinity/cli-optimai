@@ -685,6 +685,10 @@ async def supervisor_checks() -> None:
     await sup2.start_loop()
     await sup2.stop_loop()
     check("supervisor: stop_loop keeps the node alive", sup2.running)
+    check(
+        "supervisor: get_recent_output helper exists and returns list",
+        hasattr(sup2, "get_recent_output") and isinstance(sup2.get_recent_output(5), list),
+    )
     await sup2.request_stop()
 
 
@@ -874,6 +878,25 @@ check(
     "main: running bot.main without env exits 1 with CONFIG ERROR",
     p_noenv.returncode == 1 and "CONFIG ERROR" in (p_noenv.stdout + p_noenv.stderr),
 )
+
+from bot.main import _send_pre
+
+async def test_send_pre_mechanics() -> None:
+    captured_1arg = []
+    await _send_pre(lambda msg: captured_1arg.append(msg), "Sample node log line")
+    check(
+        "main: _send_pre delivers formatted pre blocks to 1-arg lambda without TypeError",
+        len(captured_1arg) == 1 and "<pre>Sample node log line</pre>" == captured_1arg[0],
+    )
+
+    captured_kwargs = []
+    await _send_pre(lambda msg, **kw: captured_kwargs.append((msg, kw)), "Log with parse_mode")
+    check(
+        "main: _send_pre delivers parse_mode to keyword-aware callables",
+        len(captured_kwargs) == 1 and str(captured_kwargs[0][1].get("parse_mode")) == "HTML",
+    )
+
+asyncio.run(test_send_pre_mechanics())
 
 # ======================================================================
 print("\n" + "=" * 62)
